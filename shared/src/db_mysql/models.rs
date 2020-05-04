@@ -1,24 +1,24 @@
-use super::schema::earnings;
+use super::schema::{earnings, shares};
 use super::util::unix_timestamp;
 use serde::{Deserialize, Serialize};
 // use diesel::deserialize::Queryable;
 // type MySQLDB = diesel::mysql::Mysql;
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize, Deserialize)]
 pub struct Share {
-  id: u32,
-  user_id: u32,
-  worker_id: u32,
-  coin_id: u32,
-  timestamp: u64,
-  difficulty: f64,
-  share_diff: f64,
-  block_reward: f64,
-  block_diff: f64,
-  algo: u8,
-  mode: u8,
-  party_pass: String,
-  stratum_id: u8,
+  pub id: i32,
+  pub user_id: i32,
+  pub worker_id: i32,
+  pub coin_id: i32,
+  pub timestamp: i64,
+  pub difficulty: f64,
+  pub share_diff: f64,
+  pub block_reward: f64,
+  pub block_diff: f64,
+  pub algo: String,
+  pub mode: String,
+  pub party_pass: String,
+  pub stratum_id: i8,
 }
 
 impl Default for Share {
@@ -34,8 +34,8 @@ impl Default for Share {
       block_reward: 0.6,
       //block_reward: 2.38095238,
       block_diff: 0.0,
-      algo: 0,
-      mode: 0,
+      algo: "".to_string(),
+      mode: "".to_string(),
       party_pass: "".to_string(),
       stratum_id: 0,
     }
@@ -45,15 +45,15 @@ impl Default for Share {
 impl Share {
   /// Constructs new share data for worker.
   pub fn new(
-    user_id: u32,
-    worker_id: u32,
+    user_id: i32,
+    worker_id: i32,
     difficulty: f64,
     share_diff: f64,
     block_diff: f64,
-    algo: u8,
-    mode: u8,
+    algo: String,
+    mode: String,
     party_pass: String,
-    stratum_id: u8,
+    stratum_id: i8,
   ) -> Self {
     Share {
       user_id: user_id,
@@ -90,7 +90,25 @@ impl ToString for Share {
   }
 }
 
-/// Earning model.
+/// Earning model for inserts.
+#[derive(Insertable, Serialize, Deserialize)]
+#[table_name = "shares"]
+pub struct ShareMYSQLInsertable {
+  pub user_id: i32,
+  pub worker_id: i32,
+  pub coin_id: i32,
+  pub difficulty: f64,
+  pub share_diff: f64,
+  pub block_diff: f64,
+  pub algo: String,
+  pub mode: String,
+  pub block_reward: f64,
+  pub party_pass: String,
+  pub stratum_id: i32,
+  pub timestamp: i64,
+}
+
+/// Earning model for queries.
 #[derive(Queryable)]
 pub struct Earning {
   pub id: i32,
@@ -120,10 +138,10 @@ impl Default for Earning {
   }
 }
 
-/// Earning model.
+/// Earning model for inserts.
 #[derive(Insertable)]
 #[table_name = "earnings"]
-pub struct EarningInsertable {
+pub struct EarningMYSQLInsertable {
   pub userid: i32,
   pub coinid: i32,
   pub blockid: i32,
@@ -136,11 +154,11 @@ pub struct EarningInsertable {
 /// Block model.
 #[derive(Queryable, Serialize, Deserialize)]
 pub struct Block {
-  pub id: u32,
-  pub coin_id: u32,
+  pub id: i32,
+  pub coin_id: i32,
   pub height: i32,
-  pub time: u64,
-  pub userid: u32,
+  pub time: i64,
+  pub userid: i32,
   pub workerid: i32,
   pub confirmations: i32,
   pub amount: f64,
@@ -160,7 +178,7 @@ impl Default for Block {
       id: 0,
       coin_id: 0,
       height: 0,
-      time: unix_timestamp() as u64,
+      time: unix_timestamp() as i64,
       userid: 0,
       workerid: 0,
       confirmations: 0,

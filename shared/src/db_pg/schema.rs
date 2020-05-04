@@ -11,10 +11,10 @@ table! {
     difficulty -> Double,
     difficulty_user -> Double,
     blockhash -> Text,
-    algo -> Text,
+    algo -> TinyInt,
     category -> Text,
     stratum_id -> Text,
-    mode -> Text,
+    mode -> TinyInt,
     party_pass -> Text,
   }
 }
@@ -28,7 +28,7 @@ table! {
     create_time -> Integer,
     amount -> Double,
     status -> Integer,
-    mode -> Text,
+    mode -> TinyInt,
     stratum -> Text,
   }
 }
@@ -39,13 +39,13 @@ table! {
     user_id -> Integer,
     worker_id -> Integer,
     coin_id -> Integer,
-    timestamp -> Integer,
-    algo -> Integer,
+    timestamp -> BigInt,
+    algo -> TinyInt,
     difficulty -> Double,
     share_diff -> Double,
     block_reward -> Double,
     block_diff -> Double,
-    mode -> Integer,
+    mode -> TinyInt,
     party_pass -> Text,
     stratum_id -> Integer,
   }
