@@ -1,38 +1,45 @@
-// use std::time::SystemTime;
+pub mod shares {
 
-// use diesel::pg::PgConnection;
-
-// use crate::common::types::Error;
-// use super::models::Earning;
-// use std::ops::{Bound, RangeBounds};
-
-// // select * from shares where timestamp > 2hrs ago
-// fn get_2hrs_of_shares_from_pg(conn: PgConnection)-> result or Vec<Share>{
-//   time2hrsago = ;
-
-//   let shares :Vec<Share> = conn.select("SELECT * FROM shares WHERE time or timestamp > timeh2hrsago")
-// return shares
-// }
-pub mod earnings {
+  #[cfg(test)]
+  use diesel::debug_query;
+  use diesel::dsl::sql;
+  use diesel::insert_into;
+  use diesel::pg::PgConnection;
+  use diesel::prelude::*;
   use diesel::result::Error;
-  use diesel::{insert_into, mysql::MysqlConnection, prelude::*};
+  use diesel::*;
 
-  use super::super::{models::EarningInsertable, schema::earnings::dsl};
   // use super::super::{
   //   models::EarningInsertable,
   //   schema::earnings::{self, dsl},
   // };
+  // use super::super::{models::SharePGInsertable, schema::shares::dsl};
+  use super::super::schema::shares::dsl::*;
 
-  /// Inserts block to MySQL database.
-  pub fn insert_earnings_mysql(
-    conn: &MysqlConnection,
-    earnings: Vec<EarningInsertable>,
+  use super::super::models::{SharePGInsertable, SharePg};
+  /// Inserts block to PG database.
+  pub fn insert_shares_pg(
+    conn: &PgConnection,
+    sharesVec: Vec<SharePGInsertable>,
   ) -> Result<(), Error> {
-    insert_into(dsl::earnings)
-      .values(&earnings)
+    insert_into(shares)
+      .values(&sharesVec)
       .execute(conn)
       .map(|_| ())
   }
-}
 
-pub mod shares {}
+  pub fn select_shares_count_pg(conn: &PgConnection) -> i64 {
+    let select_count = shares.select(sql::<sql_types::BigInt>("COUNT(*)"));
+    let get_count = || select_count.clone().first::<i64>(conn);
+    return get_count().unwrap();
+  }
+
+  pub fn select_shares_newer_pg(conn: &PgConnection, time_val: i64) -> Vec<SharePg> {
+    let res = shares
+      .filter(time.gt(time_val))
+      // .limit(5)
+      .load::<SharePg>(conn)
+      .expect("ffailed loading shares");
+    return res;
+  }
+}

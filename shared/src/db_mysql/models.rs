@@ -18,7 +18,7 @@ pub struct Share {
   pub algo: String,
   pub mode: String,
   pub party_pass: String,
-  pub stratum_id: i8,
+  pub stratum_id: i32,
 }
 
 impl Default for Share {
@@ -53,7 +53,7 @@ impl Share {
     algo: String,
     mode: String,
     party_pass: String,
-    stratum_id: i8,
+    stratum_id: i32,
   ) -> Self {
     Share {
       user_id: user_id,

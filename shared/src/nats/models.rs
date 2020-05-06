@@ -4,23 +4,23 @@ use serde::{Deserialize, Serialize};
 pub struct ShareNats {
   pub user_id: i32,
   pub worker_id: i32,
-  pub coin_id: i32,
+  pub coin_id: i16,
   pub timestamp: i64,
   pub difficulty: f64,
   pub share_diff: f64,
-  pub block_reward: f64,
   pub block_diff: f64,
-  pub algo: i8,
-  pub mode: i8,
+  pub algo: i16,
+  pub mode: i16,
+  pub block_reward: f64,
   pub party_pass: String,
-  pub stratum_id: i8,
+  pub stratum_id: i16,
 }
 
 /// Block model.
 #[derive(Queryable, Serialize, Deserialize)]
 pub struct BlockNats {
   pub id: i32,
-  pub coin_id: i32,
+  pub coin_id: i16,
   pub height: i32,
   pub time: i64,
   pub userid: i32,
@@ -30,9 +30,9 @@ pub struct BlockNats {
   pub difficulty: f64,
   pub difficulty_user: f64,
   pub blockhash: String,
-  pub algo: i8,
+  pub algo: i16,
   pub category: String,
   pub stratum_id: String,
-  pub mode: i8,
+  pub mode: i16,
   pub party_pass: String,
 }
