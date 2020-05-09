@@ -42,6 +42,8 @@ use shared::db_pg::{
   establish_pg_connection, helpers::shares::select_shares_newer_pg, models::SharePg,
 };
 
+use shared::enums::*;
+
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::sync::{Arc, Mutex};
@@ -113,66 +115,6 @@ impl From<SharePg> for ShareMinified {
       mode: ShareModes::from_i16(s.mode),
       party_pass: s.party_pass,
     }
-  }
-}
-
-#[derive(Debug, Clone)]
-enum Algos {
-  DEFAULT = 0,
-  PRIMARY = 1,
-  SECONDARY = 2,
-}
-impl Algos {
-  fn from_string(value: &str) -> Algos {
-    match value {
-      "" => Algos::DEFAULT,
-      "primary" => Algos::PRIMARY,
-      "secondary" => Algos::SECONDARY,
-      _ => Algos::DEFAULT,
-    }
-  }
-  fn from_i16(value: i16) -> Algos {
-    match value {
-      0 => Algos::DEFAULT,
-      1 => Algos::PRIMARY,
-      2 => Algos::SECONDARY,
-      _ => Algos::DEFAULT,
-    }
-  }
-}
-impl fmt::Display for Algos {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum ShareModes {
-  NORMAL = 0,
-  PARTY = 1,
-  SOLO = 2,
-}
-impl ShareModes {
-  fn from_string(value: &str) -> ShareModes {
-    match value {
-      "" => ShareModes::NORMAL,
-      "party" => ShareModes::PARTY,
-      "solo" => ShareModes::SOLO,
-      _ => panic!("Unknown Value: {}", value),
-    }
-  }
-  fn from_i16(value: i16) -> ShareModes {
-    match value {
-      0 => ShareModes::NORMAL,
-      1 => ShareModes::PARTY,
-      2 => ShareModes::SOLO,
-      _ => panic!("Unknown Value: {}", value),
-    }
-  }
-}
-impl fmt::Display for ShareModes {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
   }
 }
 

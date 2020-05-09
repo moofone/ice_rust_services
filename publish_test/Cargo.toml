@@ -11,9 +11,9 @@ path = "src/publish.rs"
 
 [dependencies]
 tokio = { version = "0.2", features = ["full"] }
-serde = { version = "1.0.106", features = ["derive"] }
+#serde = { version = "1.0.106", features = ["derive"] }
 serde_json = "1.0.51"
-natsio = "0.3.2"
+#natsio = "0.3.2"
 shared = { path = "../shared"}
 rand = "*"
 futures = "0.3.1"

@@ -50,3 +50,14 @@ table! {
     stratum_id -> Integer,
   }
 }
+
+table! {
+  workers(id){
+    id -> Int4,
+    coin_id -> Int2,
+    user_id -> Int4,
+    worker_id -> Int4,
+    worker_name -> Text,
+    hashrate -> Double,
+  }
+}

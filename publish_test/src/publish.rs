@@ -1,15 +1,16 @@
 extern crate rand;
 extern crate shared;
-use nats;
+// use nats;
 use rand::Rng;
-use serde::{Deserialize, Serialize};
+// use serde::{Deserialize, Serialize};
+use serde_json;
 use shared::nats::establish_nats_connection;
 use shared::nats::models::{BlockNats, ShareNats};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 
 static BLOCKINTERVAL: u64 = 10000;
-static SHAREINTERVAL: u64 = 500;
+static SHAREINTERVAL: u64 = 1000;
 
 #[tokio::main]
 async fn main() {
@@ -98,6 +99,48 @@ fn create_blocks() -> Vec<BlockNats> {
       .unwrap()
       .as_secs() as i64, //i64,
     userid: 11111, //i32,
+    workerid: 100, //i32,
+    confirmations: 100, //i32,
+    amount: 1000.0, //f64,
+    difficulty: 100.0, //f64,
+    difficulty_user: 100.0, //f64,
+    blockhash: "234".to_string(), //String,
+    algo: 2,       //i8,
+    category: "null".to_string(), //String,
+    stratum_id: "alpha".to_string(), //String,
+    mode: 1,       //i8,
+    party_pass: "12345".to_string(), //String,
+  });
+  blocks.push(BlockNats {
+    id: 100,
+    coin_id: 2423, // i32,
+    height: 100,   // i32,
+    time: SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap()
+      .as_secs() as i64, //i64,
+    userid: 11111, //i32,
+    workerid: 100, //i32,
+    confirmations: 100, //i32,
+    amount: 1000.0, //f64,
+    difficulty: 100.0, //f64,
+    difficulty_user: 100.0, //f64,
+    blockhash: "234".to_string(), //String,
+    algo: 2,       //i8,
+    category: "null".to_string(), //String,
+    stratum_id: "alpha".to_string(), //String,
+    mode: 1,       //i8,
+    party_pass: "12345".to_string(), //String,
+  });
+  blocks.push(BlockNats {
+    id: 100,
+    coin_id: 2422, // i32,
+    height: 100,   // i32,
+    time: SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap()
+      .as_secs() as i64, //i64,
+    userid: 22222, //i32,
     workerid: 100, //i32,
     confirmations: 100, //i32,
     amount: 1000.0, //f64,

@@ -1,4 +1,4 @@
-use super::schema::{earnings, shares};
+use super::schema::{earnings, shares, workers};
 use super::util::unix_timestamp;
 use serde::{Deserialize, Serialize};
 // use diesel::deserialize::Queryable;
@@ -194,3 +194,22 @@ impl Default for Block {
     }
   }
 }
+
+/// HashWorker model for queries.
+#[derive(Queryable, Identifiable)]
+pub struct Worker {
+  pub id: i32,
+  pub coin_id: i16,
+  pub userid: i32,
+  pub worker_id: i32,
+  pub hashrate: f64,
+}
+
+// #[derive(Insertable)]
+// #[table_name = "workers"]
+// pub struct HashWorkerRow {
+//   pub coin_id: i16,
+//   pub userid: i32,
+//   pub worker_id: i32,
+//   pub hashrate: f64,
+// }
