@@ -1,6 +1,23 @@
 use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
+pub enum Coins {
+  DEFAULT = 0,
+  PRIMARY = 1,
+  SECONDARY = 2,
+  CUCKOO = 3,
+  CUCKOO29 = 4,
+  EQUIHASH144 = 5,
+  BEAMHASHII = 6,
+  ARGON2D = 7,
+  RANDOMX = 8,
+  PROGPOW = 9,
+  CUCKAROO = 10,
+  CUCKATOO = 11,
+  BLAKE2S = 12,
+}
+
+#[derive(Debug, Copy, Clone)]
 pub enum Algos {
   DEFAULT = 0,
   PRIMARY = 1,

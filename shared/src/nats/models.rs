@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Queryable, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ShareNats {
   pub user_id: i32,
   pub worker_id: i32,
@@ -17,7 +17,7 @@ pub struct ShareNats {
 }
 
 /// Block model.
-#[derive(Queryable, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct BlockNats {
   pub id: i32,
   pub coin_id: i16,

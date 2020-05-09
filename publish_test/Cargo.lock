@@ -676,6 +676,7 @@ name = "publish_test"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "natsio",
  "rand 0.7.3",
  "serde_json",
  "shared",

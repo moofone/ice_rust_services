@@ -45,7 +45,7 @@ use shared::db_pg::{
 use shared::enums::*;
 
 use std::collections::{HashMap, VecDeque};
-use std::fmt;
+// use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
@@ -56,12 +56,8 @@ const SOLO_FEE: f64 = 0.02;
 const PARTY_FEE: f64 = 0.02;
 const WINDOW_LENGTH: u64 = 2 * 60 * 60;
 
-// fn default_mode() -> i32 {
-//   return 0;
-// }
-// fn default_party_pass() -> String {
-//   return "".to_string();
-// }
+// Minimum data required to be stored in the queue
+// share minified is used to update the hashmap
 #[derive(Debug, Clone)]
 struct ShareMinified {
   user_id: i32,
@@ -72,11 +68,11 @@ struct ShareMinified {
   mode: ShareModes,
   party_pass: String,
 }
-// SOMEHOW GENERIC CALC_SCORE
+// convert incoming shareNats into shareminified
 impl From<ShareNats> for ShareMinified {
   fn from(s: ShareNats) -> Self {
     let score = calc_score(
-      ShareModes::from_i16(s.mode).clone(),
+      ShareModes::from_i16(s.mode),
       s.coin_id,
       s.user_id,
       s.difficulty,
@@ -94,12 +90,11 @@ impl From<ShareNats> for ShareMinified {
     }
   }
 }
-//
-// SOMEHOW GENERIC CALC_SCORE
+// convert incoming shares from PG to share minified
 impl From<SharePg> for ShareMinified {
   fn from(s: SharePg) -> Self {
     let score = calc_score(
-      ShareModes::from_i16(s.mode).clone(),
+      ShareModes::from_i16(s.mode),
       s.coin_id,
       s.user_id,
       s.difficulty,
@@ -118,6 +113,7 @@ impl From<SharePg> for ShareMinified {
   }
 }
 
+// generic earning - to be converted into PG and MYSQL earnings
 #[derive(Debug, PartialEq)]
 struct Earning {
   user_id: i32,
@@ -133,9 +129,12 @@ impl Earning {
   // fn to_EarningPGINsertable() -> EarningPGInsertable {}
 }
 
-type UserScoreDictType = HashMap<String, HashMap<i32, f64>>;
+// hashmap to hold userid's with the current dpplns scores
+type UserScoreMapType = HashMap<String, HashMap<i32, f64>>;
+// queue to hold shares (queue length of dpplns window)
 type ShareQueueType = VecDeque<ShareMinified>;
-type EarningDictType = HashMap<i32, f64>;
+// hashmap to hold earnings for each block
+type EarningMapType = HashMap<i32, f64>;
 
 #[tokio::main]
 async fn main() {
@@ -143,14 +142,14 @@ async fn main() {
   //   sentry::init("hhttps://3741efe24e524656911739231c935b7b@sentry.watlab.icemining.ca/4");
   // sentry::capture_message("Hello World!", sentry::Level::Info);
 
-  // create base structs and arc them
-
-  let shares = Arc::new(Mutex::new(ShareQueueType::new()));
-  let user_scores = Arc::new(Mutex::new(UserScoreDictType::new()));
+  // create base structs to be used across threads
+  let shares_queue = Arc::new(Mutex::new(ShareQueueType::new()));
+  let user_scores_map = Arc::new(Mutex::new(UserScoreMapType::new()));
 
   {
-    let mut sha = shares.lock().unwrap();
-    let mut sco = user_scores.lock().unwrap();
+    // lock the shares and scores, load last window from database
+    let mut sha = shares_queue.lock().unwrap();
+    let mut sco = user_scores_map.lock().unwrap();
     load_shares_from_db(&mut *sha, &mut *sco);
   }
 
@@ -169,79 +168,105 @@ async fn main() {
     for coin in coins {
       let channel = format!("shares.{}", coin.to_string());
       let sub = nc.subscribe(&channel).unwrap();
-      let shares = shares.clone();
-      let user_scores = user_scores.clone();
+      let shares = shares_queue.clone();
+      let user_scores = user_scores_map.clone();
       let share_task = tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_millis(50));
-        loop {
-          if let Some(msg) = sub.try_next() {
-            let share = parse_share(&msg.data);
-            let mut sha = shares.lock().unwrap();
-            let mut sco = user_scores.lock().unwrap();
-            handle_share(&mut *sco, &mut *sha, share);
-          } else {
-            interval.tick().await;
-          }
+        for msg in sub.messages() {
+          let share = parse_share(&msg.data);
+          let mut sha = shares.lock().unwrap();
+          let mut sco = user_scores.lock().unwrap();
+          handle_share(&mut *sco, &mut *sha, share);
         }
+        // let mut interval = time::interval(Duration::from_millis(1));
+        // loop {
+        //   if let Some(msg) = sub.try_next() {
+        //     let share = parse_share(&msg.data);
+        //     let mut sha = shares.lock().unwrap();
+        //     let mut sco = user_scores.lock().unwrap();
+        //     handle_share(&mut *sco, &mut *sha, share);
+        //   } else {
+        //     interval.tick().await;
+        //   }
+        // }
       });
       tasks.push(share_task);
     }
   }
   //-----------------------BLOCKS LISTENER----------------------------
   {
+    // subscribe to the nats blocks channel
+    let block_sub = nc.subscribe("blocks").unwrap();
+
+    // grab a copy of the pool fro the listener
     let mysql_pool = mysql_pool.clone();
 
-    let block_sub = nc.subscribe("blocks").unwrap();
-    let user_scores = user_scores.clone();
+    // grab a copy of user_users to be passed into listener thread
+    let user_scores = user_scores_map.clone();
+
+    // spawn a new task to listen for new blocks
     let block_task = tokio::spawn({
       async move {
-        let mut interval = time::interval(Duration::from_millis(50));
-        interval.tick().await;
-
-        loop {
+        // loop through the blocking messages() listener waiting for blocks
+        for msg in block_sub.messages() {
+          // grab a new
           let mysql_pool = mysql_pool.clone();
 
-          if let Some(msg) = block_sub.try_next() {
-            // let pool = pool.clone();
-            let user_scores = user_scores.clone();
-            tokio::spawn({
-              async move {
-                let block = parse_block(&msg.data.clone());
-                let sco = user_scores.lock().unwrap();
-                let earnings_dict = dpplns(&block, &*sco);
-                drop(sco);
+          // grab a copy of user_users to be passed into processing thread
+          let user_scores = user_scores.clone();
+          tokio::spawn({
+            async move {
+              let block = parse_block(&msg.data);
+              let sco = user_scores.lock().unwrap();
+              let earnings_dict = dpplns(&block, &*sco);
+              drop(sco);
 
-                let mut conn = mysql_pool.get().unwrap();
-                insert_earnings(&block, earnings_dict, &mut conn);
-              }
-            });
-          } else {
-            interval.tick().await;
-          }
+              let mut conn = mysql_pool.get().unwrap();
+              insert_earnings(&block, earnings_dict, &mut conn);
+            }
+          });
         }
+
+        // let mut interval = time::interval(Duration::from_millis(50));
+        // interval.tick().await;
+
+        // loop {
+        //   let mysql_pool = mysql_pool.clone();
+
+        //   if let Some(msg) = block_sub.try_next() {
+        //     // let pool = pool.clone();
+        //     let user_scores = user_scores.clone();
+        //     tokio::spawn({
+        //       async move {
+        //         let block = parse_block(&msg.data.clone());
+        //         let sco = user_scores.lock().unwrap();
+        //         let earnings_dict = dpplns(&block, &*sco);
+        //         drop(sco);
+
+        //         let mut conn = mysql_pool.get().unwrap();
+        //         insert_earnings(&block, earnings_dict, &mut conn);
+        //       }
+        //     });
+        //   } else {
+        //     interval.tick().await;
+        //   }
+        // }
       }
     });
     tasks.push(block_task);
   }
   //--------------------------TRIM TIMER----------------------------
   {
-    let shares = shares.clone();
-    let user_scores = user_scores.clone();
+    let shares = shares_queue.clone();
+    let user_scores = user_scores_map.clone();
     let trim_task = tokio::spawn(async move {
       let mut interval = time::interval(Duration::from_millis(2000));
       // let mut count = 0;
       loop {
         interval.tick().await;
 
-        // if count % 2 == 0 {
         let mut sha = shares.lock().unwrap();
         let mut sco = user_scores.lock().unwrap();
-        trim_shares_from_queue_and_dict(&mut *sco, &mut *sha);
-        // drop(sha);
-        // drop(sco);
-        // } else {
-        // }
-        // count += 1;
+        trim_shares_from_queue_and_map(&mut *sco, &mut *sha);
       }
     });
     tasks.push(trim_task);
@@ -250,12 +275,12 @@ async fn main() {
   for handle in tasks {
     handle.await.unwrap();
   }
-  println!("hi");
 }
 
-fn dpplns(block: &BlockNats, dict: &UserScoreDictType) -> EarningDictType {
+// main dpplns function, takes in a block and generates the earnings for each user
+fn dpplns(block: &BlockNats, dict: &UserScoreMapType) -> EarningMapType {
   let mut f = NORMAL_FEE;
-  let mut earnings_dict: EarningDictType = HashMap::new();
+  let mut earnings_dict: EarningMapType = HashMap::new();
   // let log = "".to_string();
 
   // setup block fees and log
@@ -289,8 +314,6 @@ fn dpplns(block: &BlockNats, dict: &UserScoreDictType) -> EarningDictType {
       );
       earnings_dict.insert(block.userid, share_payout);
       return earnings_dict;
-      // insert_earnings(&block, earnings_dict, pool_conn);
-      // return;
     }
   }
 
@@ -303,7 +326,7 @@ fn dpplns(block: &BlockNats, dict: &UserScoreDictType) -> EarningDictType {
   );
   let key_exists = dict.contains_key(&key);
   if key_exists == false {
-    println!("block failed, invalid dict key");
+    println!("block failed, invalid dict key: {}", &key);
     panic!("block failed");
   }
   earnings_dict = dict.get(&key).unwrap().clone();
@@ -339,7 +362,8 @@ fn dpplns(block: &BlockNats, dict: &UserScoreDictType) -> EarningDictType {
   return earnings_dict;
 }
 
-fn insert_earnings(block: &BlockNats, earnings_dict: EarningDictType, pool_conn: &MysqlConnection) {
+// inserts earnings into the databases
+fn insert_earnings(block: &BlockNats, earnings_dict: EarningMapType, pool_conn: &MysqlConnection) {
   let mut earnings: Vec<EarningMYSQLInsertable> = Vec::new();
   for (&user_id, val) in earnings_dict.iter() {
     earnings.push(EarningMYSQLInsertable {
@@ -353,32 +377,14 @@ fn insert_earnings(block: &BlockNats, earnings_dict: EarningDictType, pool_conn:
       stratum: block.stratum_id.clone(),
     });
   }
-  let e = insert_earnings_mysql(pool_conn, earnings);
-  match e {
-    Ok(success) => println!("Earnings Inserted"),
-    Err(e) => println!("Earnings Insert Failed: {}", e),
-  }
-  // Now let's insert payments to the database
-  // let f = pool_conn.exec_batch(
-  //   r"INSERT INTO earnings (userid, coinid, blockid, create_time, status, amount, mode)
-  //     VALUES (:userid, :coinid, :blockid, :create_time, :status, :amount, :mode)",
-  //   earnings.iter().map(|e| {
-  //     params! {
-  //         "userid" => e.user_id,
-  //         "coinid" => e.amount,
-  //         "blockid" => &e.block_id,
-  //         "create_time" => *&e.create_time as i64,
-  //         "status" => &e.status,
-  //         "amount" => &e.amount,
-  //         "mode" => &e.mode.to_string(),
-  //     }
-  //   }),
-  // );
-  // let f = match f {
-  //   Ok(val) => println!("Earnings Inserted"),
-  //   Err(error) => println!("Earnings insert failed {}", error),
-  // };
+  // let e = insert_earnings_mysql(pool_conn, earnings);
+  // match e {
+  //   Ok(success) => println!("Earnings Inserted"),
+  //   Err(e) => println!("Earnings Insert Failed: {}", e),
+  // }
 }
+
+// generates a key from the share to be used in the user scores hashmap
 fn dict_key_gen(mode: &ShareModes, coin_id: i16, algo: &Algos, party_pass: &String) -> String {
   let key;
   match mode {
@@ -397,6 +403,7 @@ fn dict_key_gen(mode: &ShareModes, coin_id: i16, algo: &Algos, party_pass: &Stri
 }
 
 // TODO: MsgPack with lz4 compression for shares
+// converts nats message to sharenats and then to share minified
 fn parse_share(msg: &Vec<u8>) -> ShareMinified {
   // Some JSON input data as a &str. Maybe this comes from the user.
   // Parse the string of data into serde_json::Value.
@@ -405,38 +412,62 @@ fn parse_share(msg: &Vec<u8>) -> ShareMinified {
   return share;
 }
 
+// converts nats message to blocknats
 fn parse_block(msg: &Vec<u8>) -> BlockNats {
   let b: BlockNats = serde_json::from_slice(&msg).unwrap();
-  // let block = Block::from(b);
-  println!("{:?}", b.time);
   return b;
 }
 
-fn handle_share(dict: &mut UserScoreDictType, shares: &mut ShareQueueType, share: ShareMinified) {
+// add share to queue and add share to map
+fn handle_share(dict: &mut UserScoreMapType, shares: &mut ShareQueueType, share: ShareMinified) {
   add_share_to_queue(shares, share.clone());
-  update_dict_with_new_share(dict, share.clone());
+  update_map_with_new_share(dict, share.clone());
 }
 
-fn load_shares_from_db(shares: &mut VecDeque<ShareMinified>, user_scores: &mut UserScoreDictType) {
+// load shares in from postgres on restart of dpplns service
+fn load_shares_from_db(
+  shares_queue: &mut VecDeque<ShareMinified>,
+  user_scores_map: &mut UserScoreMapType,
+) {
+  // establish PG pool
   let pg_pool = establish_pg_connection();
+  // get a pooled connection
+  let pg_conn = pg_pool.get().unwrap();
 
-  // let new_shares: Vec<SharePg> = Vec::new();
-  let time_window_start = SystemTime::now()
+  // get the window time with its steps setup
+  // steps required as a full window would be a 26M row query
+  let mut time_window_start = SystemTime::now()
     .duration_since(UNIX_EPOCH)
     .unwrap()
     .as_secs()
     - WINDOW_LENGTH;
-  let pg_conn = pg_pool.get().unwrap();
-  let new_shares: Vec<SharePg> = select_shares_newer_pg(&pg_conn, time_window_start as i64);
-  println!("{}", new_shares.len());
+  let time_now = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap()
+    .as_secs();
+  let step_count = 10;
+  let step_size = (time_now - time_window_start) / step_count;
 
-  for share in new_shares {
-    let share = ShareMinified::from(share);
-    handle_share(user_scores, shares, share);
+  // loop through selecting 1/step_count windows of shares and load them
+  for _ in 0..step_count {
+    let new_shares: Vec<SharePg> = select_shares_newer_pg(
+      &pg_conn,
+      time_window_start as i64,
+      (time_window_start + step_size) as i64,
+    );
+    time_window_start += step_size;
+    // println!("Queryied {}", new_shares.len());
+
+    for share in new_shares {
+      let share = ShareMinified::from(share);
+      handle_share(user_scores_map, shares_queue, share);
+    }
+    // println!("Shares Processed");
   }
-  println!("Queue size {}", shares.len());
+  println!("Queue size {}", shares_queue.len());
 }
 
+// calculate the base share value
 fn calc_score(
   mode: ShareModes,
   coin_id: i16,
@@ -445,12 +476,10 @@ fn calc_score(
   block_diff: f64,
   block_reward: f64,
 ) -> f64 {
+  // solo shares dont need to keep score
   if mode == ShareModes::SOLO {
     return 1.0;
   }
-  // if mode as i8 == ShareModes::SOLO as i8 {
-  //   return 1.0;
-  // }
 
   let mut f;
   match coin_id {
@@ -474,27 +503,25 @@ fn calc_score(
   let user_id = user_id;
 
   let mut share_payout = (1.0 - f) * (s * b);
-  if user_id == 52892 {
-    share_payout *= 4.0;
-  } // myatomwallet
-  if user_id == 53443 {
-    share_payout *= 49.0;
-  } // nimiq
-  if user_id == 51779 {
-    share_payout *= 12.0;
-  } // mymwc666
-  if user_id == 50432 {
-    share_payout *= 0.94;
-  } // mwcdevelsoft
-  return share_payout as f64;
-  // return 1.0;
+  match user_id {
+    52892 => share_payout *= 4.0,  // myatomwallet
+    53443 => share_payout *= 49.0, // nimiq
+    51779 => share_payout *= 12.0, // mymwc666
+    50432 => share_payout *= 0.94, // mwcdevelsoft
+    _ => (),
+  }
+
+  // return the share_payout
+  share_payout
 }
 
-fn add_share_to_queue(shares: &mut ShareQueueType, share: ShareMinified) {
-  shares.push_back(share);
+// adds a minified share to the queue
+fn add_share_to_queue(shares_queue: &mut ShareQueueType, share: ShareMinified) {
+  shares_queue.push_back(share);
 }
 
-fn update_dict_with_new_share(dict: &mut UserScoreDictType, share_obj: ShareMinified) {
+// add a share to the map but increaking the user's value
+fn update_map_with_new_share(map: &mut UserScoreMapType, share_obj: ShareMinified) {
   // generate a key for the dictionary based on the share
   let key: String = dict_key_gen(
     &share_obj.mode,
@@ -504,13 +531,13 @@ fn update_dict_with_new_share(dict: &mut UserScoreDictType, share_obj: ShareMini
   );
 
   // add coin-algo if it doesnt already exist
-  if !dict.contains_key(&key) {
+  if !map.contains_key(&key) {
     let init_map: HashMap<i32, f64> = HashMap::new();
-    dict.insert(key.to_string(), init_map);
+    map.insert(key.to_string(), init_map);
   }
 
-  // set the user_scores dict to the proper key
-  let user_scores = dict.get_mut(&key).unwrap();
+  // set the user_scores map to the proper key
+  let user_scores = map.get_mut(&key).unwrap();
 
   // update user score
   if let Some(user) = user_scores.get_mut(&share_obj.user_id) {
@@ -520,7 +547,8 @@ fn update_dict_with_new_share(dict: &mut UserScoreDictType, share_obj: ShareMini
   }
 }
 
-fn update_dict_by_removing_share(dict: &mut UserScoreDictType, share_obj: ShareMinified) {
+// removes a share from the map by updating its value
+fn update_map_by_removing_share(map: &mut UserScoreMapType, share_obj: ShareMinified) {
   // generate a key for the dictionary based on the share
   let key: String = dict_key_gen(
     &share_obj.mode,
@@ -529,11 +557,11 @@ fn update_dict_by_removing_share(dict: &mut UserScoreDictType, share_obj: ShareM
     &share_obj.party_pass,
   );
 
-  // set the user_scores dict to the proper key
-  if !dict.contains_key(&key) {
+  // set the user_scores map to the proper key
+  if !map.contains_key(&key) {
     panic!("WTF HOW DID WE GET HERE GREG????");
   }
-  let user_scores = dict.get_mut(&key).unwrap();
+  let user_scores = map.get_mut(&key).unwrap();
 
   // update user score
   if let Some(score) = user_scores.get_mut(&share_obj.user_id) {
@@ -547,11 +575,13 @@ fn update_dict_by_removing_share(dict: &mut UserScoreDictType, share_obj: ShareM
 
   // drop the entire key if its empty
   if user_scores.len() == 0 {
-    dict.remove(&key);
+    map.remove(&key);
   }
 }
 
-fn trim_shares_from_queue_and_dict(mut dict: &mut UserScoreDictType, shares: &mut ShareQueueType) {
+// remove shares from the queue and update the value in the map to reflect
+// looks back to the beginning of the window length
+fn trim_shares_from_queue_and_map(mut map: &mut UserScoreMapType, shares: &mut ShareQueueType) {
   let now = SystemTime::now();
   let start = now.duration_since(UNIX_EPOCH).unwrap().as_secs();
   let time_window_start = now.duration_since(UNIX_EPOCH).unwrap().as_secs() - WINDOW_LENGTH;
@@ -564,12 +594,12 @@ fn trim_shares_from_queue_and_dict(mut dict: &mut UserScoreDictType, shares: &mu
   while time < time_window_start as i64 && shares.len() > 0 {
     share = shares.pop_front().unwrap();
     time = share.time;
-    update_dict_by_removing_share(&mut dict, share.clone());
+    update_map_by_removing_share(&mut map, share);
     trimmed += 1;
   }
   println!(
-    "Done Trimming, dict-size: {}, queue-size: {}, took: {}ms, trimmed: {}",
-    dict.len(),
+    "Done Trimming, map-size: {}, queue-size: {}, took: {}ms, trimmed: {}",
+    map.len(),
     shares.len(),
     SystemTime::now()
       .duration_since(UNIX_EPOCH)
@@ -578,5 +608,5 @@ fn trim_shares_from_queue_and_dict(mut dict: &mut UserScoreDictType, shares: &mu
       - start,
     trimmed
   );
-  // println!("{:?}", dict);
+  // println!("{:?}", map);
 }

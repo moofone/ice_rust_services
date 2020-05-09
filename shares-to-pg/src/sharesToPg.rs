@@ -19,12 +19,29 @@ async fn main() {
   let mut tasks = Vec::new();
   //setup nats
   let nc = establish_nats_connection();
-  let coins: Vec<i32> = vec![2422, 2122];
+  let coins: Vec<i32> = vec![2422];
   let pg_pool = establish_pg_connection();
   let shares: VecDeque<SharePGInsertable> = VecDeque::new();
   let shares = Arc::new(Mutex::new(shares));
 
   //-----------------------SHARES LISTENER--------------------------------
+
+  // if nc
+  //   .request_timeout("fault", "help", std::time::Duration::from_secs(2))
+  //   .is_ok()
+  // {
+  //   println!("received");
+  // } else {
+  //   println!("failed");
+  // }
+  // let task = tokio::spawn(async move {
+  //   let sub = nc.subscribe("shares.2422").unwrap();
+  //   for msg in sub.messages() {
+  //     // println!("msg: {}", msg);
+  //   }
+  // });
+  // tasks.push(task);
+
   {
     for coin in coins {
       // setup nats channel
@@ -35,18 +52,23 @@ async fn main() {
 
       // spawn a thread for this channel to listen to shares
       let share_task = tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_millis(50));
-        loop {
-          // check if a share is ready
-          if let Some(msg) = sub.try_next() {
-            // prase the share, loc the queue, and add it
-            let share = parse_share(&msg.data);
-            let mut shares = shares.lock().unwrap();
-            shares.push_back(share);
-          } else {
-            interval.tick().await;
-          }
+        // let mut interval = time::interval(Duration::from_millis(50));
+        for msg in sub.messages() {
+          let share = parse_share(&msg.data);
+          let mut shares = shares.lock().unwrap();
+          shares.push_back(share);
         }
+        // loop {
+        //   // check if a share is ready
+        //   if let Some(msg) = sub.try_next() {
+        //     // prase the share, loc the queue, and add it
+        //     let share = parse_share(&msg.data);
+        //     let mut shares = shares.lock().unwrap();
+        //     shares.push_back(share);
+        //   } else {
+        //     interval.tick().await;
+        //   }
+        // }
       });
       tasks.push(share_task);
     }
@@ -58,7 +80,7 @@ async fn main() {
     let shares = shares.clone();
 
     let insert_task = tokio::spawn(async move {
-      let mut interval = time::interval(Duration::from_millis(2000));
+      let mut interval = time::interval(Duration::from_millis(1000));
       let conn = pg_pool.get().unwrap();
       loop {
         interval.tick().await;
@@ -78,16 +100,16 @@ async fn main() {
 
         // insert the array
         insert_shares_pg(&conn, shares_vec).expect("Share insert failed");
-        println!("Count of shares in table {}", select_shares_count_pg(&conn));
-        let time_window_start = SystemTime::now()
-          .duration_since(UNIX_EPOCH)
-          .unwrap()
-          .as_secs()
-          - 10;
-        println!(
-          "Count of shares in table from select {}",
-          select_shares_newer_pg(&conn, time_window_start as i64).len()
-        );
+        // println!("Count of shares in table {}", select_shares_count_pg(&conn));
+        // let time_window_start = SystemTime::now()
+        //   .duration_since(UNIX_EPOCH)
+        //   .unwrap()
+        //   .as_secs()
+        //   - 10;
+        // println!(
+        //   "Count of shares in table from select {}",
+        //   select_shares_newer_pg(&conn, time_window_start as i64).len()
+        // );
       }
     });
     tasks.push(insert_task);

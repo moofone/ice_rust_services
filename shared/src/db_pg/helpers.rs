@@ -34,9 +34,14 @@ pub mod shares {
     return get_count().unwrap();
   }
 
-  pub fn select_shares_newer_pg(conn: &PgConnection, time_val: i64) -> Vec<SharePg> {
+  pub fn select_shares_newer_pg(
+    conn: &PgConnection,
+    time_greater_than: i64,
+    time_less_than: i64,
+  ) -> Vec<SharePg> {
     let res = shares
-      .filter(time.gt(time_val))
+      .filter(time.gt(time_greater_than))
+      .filter(time.lt(time_less_than))
       // .limit(5)
       .load::<SharePg>(conn)
       .expect("ffailed loading shares");

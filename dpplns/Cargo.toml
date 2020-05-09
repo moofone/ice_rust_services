@@ -8,7 +8,7 @@ edition = "2018"
 
 [[bin]]
 name = "dpplns"
-path = "src/main.rs"
+path = "src/dpplns.rs"
 
 [dependencies]
 futures = "0.3.1"
