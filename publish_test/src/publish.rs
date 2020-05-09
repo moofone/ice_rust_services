@@ -36,7 +36,11 @@ async fn main() {
           block.id = rng.gen::<i32>().abs();
 
           let json = serde_json::to_vec(&block).unwrap();
-          nc.publish(&channel, json).unwrap();
+          match nc.publish(&channel, json) {
+            Ok(val) => println!("publish block"),
+            Err(err) => println!("err: {}", err),
+          }
+          // nc.publish(&channel, json).unwrap();
         }
       }
     });
@@ -77,7 +81,10 @@ async fn main() {
           let channel = format!("shares.{}", share.coin_id);
           // json and publish
           let json = serde_json::to_vec(&share).unwrap();
-          nc.publish(&channel, json).unwrap();
+          match nc.publish(&channel, json) {
+            Ok(val) => println!("publish share"),
+            Err(err) => println!("err: {}", err),
+          }
         }
       }
     });
@@ -113,7 +120,7 @@ fn create_blocks() -> Vec<BlockNats> {
   });
   blocks.push(BlockNats {
     id: 100,
-    coin_id: 2423, // i32,
+    coin_id: 2422, // i32,
     height: 100,   // i32,
     time: SystemTime::now()
       .duration_since(UNIX_EPOCH)
@@ -140,7 +147,7 @@ fn create_blocks() -> Vec<BlockNats> {
       .duration_since(UNIX_EPOCH)
       .unwrap()
       .as_secs() as i64, //i64,
-    userid: 22222, //i32,
+    userid: 11111, //i32,
     workerid: 100, //i32,
     confirmations: 100, //i32,
     amount: 1000.0, //f64,
