@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
+static INSERTINTERVAL: u64 = 50;
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +28,7 @@ async fn main() {
     for coin in coins {
       // setup nats channel
       let channel = format!("shares.{}", coin.to_string());
-      let sub = nc.subscribe(&channel).unwrap();
+      let sub = nc.queue_subscribe(&channel, "shares_to_pg_worker").unwrap();
       // prep queue to be used in a thread
       let shares = shares.clone();
 
@@ -49,7 +50,7 @@ async fn main() {
     let shares = shares.clone();
 
     let insert_task = tokio::spawn(async move {
-      let mut interval = time::interval(Duration::from_millis(1000));
+      let mut interval = time::interval(Duration::from_millis(INSERTINTERVAL));
       let conn = pg_pool.get().unwrap();
       loop {
         interval.tick().await;
