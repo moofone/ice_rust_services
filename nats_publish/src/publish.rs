@@ -9,7 +9,7 @@ use std::env;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 static BLOCKINTERVAL: u64 = 8000;
-static SHAREINTERVAL: u64 = 1;
+static SHAREINTERVAL: u64 = 50;
 
 #[tokio::main]
 async fn main() {
