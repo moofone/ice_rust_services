@@ -2,6 +2,7 @@ pub mod shares {
 
   #[cfg(test)]
   use diesel::debug_query;
+  use diesel::delete;
   use diesel::dsl::sql;
   use diesel::insert_into;
   use diesel::pg::PgConnection;
@@ -20,10 +21,10 @@ pub mod shares {
   /// Inserts block to PG database.
   pub fn insert_shares_pg(
     conn: &PgConnection,
-    sharesVec: Vec<SharePGInsertable>,
+    shares_vec: Vec<SharePGInsertable>,
   ) -> Result<(), Error> {
     insert_into(shares)
-      .values(&sharesVec)
+      .values(&shares_vec)
       .execute(conn)
       .map(|_| ())
   }
@@ -46,5 +47,11 @@ pub mod shares {
       .load::<SharePg>(conn)
       .expect("ffailed loading shares");
     return res;
+  }
+
+  pub fn delete_shares_older_than(conn: &PgConnection, time_less_than: i64) -> Result<(), Error> {
+    delete(shares.filter(time.lt(time_less_than)))
+      .execute(conn)
+      .map(|_| ())
   }
 }
