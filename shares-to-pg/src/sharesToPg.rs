@@ -2,7 +2,7 @@ extern crate shared;
 
 use shared::db_pg::establish_pg_connection;
 use shared::db_pg::{
-  helpers::shares::{insert_shares_pg, select_shares_count_pg, select_shares_newer_pg},
+  helpers::shares::{delete_shares_older_than, insert_shares_pg},
   models::SharePGInsertable,
 };
 use shared::nats::establish_nats_connection;
@@ -11,7 +11,9 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
-static INSERTINTERVAL: u64 = 50;
+const INSERTINTERVAL: u64 = 50;
+const DELETEINTERVAL: u64 = 2000;
+const WINDOW_LENGTH: u64 = 2 * 60 * 60;
 
 #[tokio::main]
 async fn main() {
@@ -80,6 +82,27 @@ async fn main() {
     });
     tasks.push(insert_task);
   }
+  //----------------------------CLEAN SHARES FROM PG------------------------------
+  {
+    let pg_pool = pg_pool.clone();
+
+    let clean_task = tokio::spawn(async move {
+      let mut interval = time::interval(Duration::from_millis(DELETEINTERVAL));
+      loop {
+        interval.tick().await;
+        let conn = pg_pool.get().unwrap();
+        let mut time_window_start = SystemTime::now()
+          .duration_since(UNIX_EPOCH)
+          .unwrap()
+          .as_secs()
+          - WINDOW_LENGTH;
+        println!("DELETING SHARES");
+        delete_shares_older_than(&conn, time_window_start as i64);
+      }
+    });
+    tasks.push(clean_task);
+  }
+
   for handle in tasks {
     handle.await.unwrap();
   }
