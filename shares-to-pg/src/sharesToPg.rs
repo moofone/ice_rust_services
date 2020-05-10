@@ -30,14 +30,20 @@ async fn main() {
     for coin in coins {
       // setup nats channel
       let channel = format!("shares.{}", coin.to_string());
-      let sub = nc.queue_subscribe(&channel, "shares_to_pg_worker").unwrap();
+      let sub = match nc.queue_subscribe(&channel, "shares_to_pg_worker") {
+        Ok(sub) => sub,
+        Err(err) => panic!("Queue Sub coin failed: {}"),
+      };
       // prep queue to be used in a thread
       let shares = shares.clone();
 
       // spawn a thread for this channel to listen to shares
       let share_task = tokio::spawn(async move {
         for msg in sub.messages() {
-          let share = parse_share(&msg.data);
+          let share = match parse_share(&msg.data) {
+            Ok(val) => val,
+            Err(err) => continue,
+          };
           let mut shares = shares.lock().unwrap();
           shares.push_back(share);
         }
@@ -71,7 +77,10 @@ async fn main() {
         let pg_pool = pg_pool.clone();
 
         tokio::spawn(async move {
-          let conn = pg_pool.get().unwrap();
+          let conn = match pg_pool.get() {
+            Ok(conn) => conn,
+            Err(err) => panic!("error getting mysql connection: {}", err),
+          };
 
           if shares_vec.len() > 0 {
             // insert the array
@@ -90,7 +99,10 @@ async fn main() {
       let mut interval = time::interval(Duration::from_millis(DELETEINTERVAL));
       loop {
         interval.tick().await;
-        let conn = pg_pool.get().unwrap();
+        let conn = match pg_pool.get() {
+          Ok(conn) => conn,
+          Err(err) => panic!("error getting mysql connection: {}", err),
+        };
         let mut time_window_start = SystemTime::now()
           .duration_since(UNIX_EPOCH)
           .unwrap()
@@ -107,12 +119,12 @@ async fn main() {
     handle.await.unwrap();
   }
 }
-fn parse_share(msg: &Vec<u8>) -> SharePGInsertable {
+fn parse_share(msg: &Vec<u8>) -> Result<SharePGInsertable, std::io::Error> {
   // Some JSON input data as a &str. Maybe this comes from the user.
   // Parse the string of data into serde_json::Value.
-  let s: ShareNats = serde_json::from_slice(&msg).unwrap();
+  let s: ShareNats = serde_json::from_slice(&msg)?;
   let share = sharenats_to_sharepginsertable(s);
-  return share;
+  Ok(share)
 }
 fn sharenats_to_sharepginsertable(s: ShareNats) -> SharePGInsertable {
   SharePGInsertable {
