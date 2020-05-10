@@ -5,10 +5,13 @@ authors = ["moofone <moophone22@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "subscribe"
+path = "src/subscribe.rs"
 
 [dependencies]
-#natsio = "0.3.2"
-rants = "0.4.3"
+natsio = "0.3.2"
+#rants = "0.4.3"
 futures = "0.3.1"
 tokio = { version = "0.2", features = ["full"] }
 serde_json = "1.0.51"
