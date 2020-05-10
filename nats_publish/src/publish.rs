@@ -7,8 +7,8 @@ use shared::nats::models::{BlockNats, ShareNats};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 
-static BLOCKINTERVAL: u64 = 2000;
-static SHAREINTERVAL: u64 = 1000;
+static BLOCKINTERVAL: u64 = 8000;
+static SHAREINTERVAL: u64 = 5;
 
 #[tokio::main]
 async fn main() {
@@ -16,9 +16,9 @@ async fn main() {
   //setup nats
   let nc = establish_nats_connection();
   println!(
-    "Publishing 3 blocks every: {}s, publishing 10 shares every: {}s",
+    "Pub 3 blocks every: {}s, pub 10 shares {} times/s",
     BLOCKINTERVAL / 1000,
-    SHAREINTERVAL / 1000
+    1000 / SHAREINTERVAL
   );
   //---------------------------BLOCKS------------------------------
   //blocks push
@@ -80,7 +80,7 @@ async fn main() {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-          // share.party_pass = format!("{}", rng.gen_range(10000, 20000));
+          share.party_pass = format!("{}", rng.gen_range(10000, 15000));
 
           // set the channel
           let channel = format!("shares.{}", share.coin_id);

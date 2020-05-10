@@ -18,7 +18,7 @@ pub type MysqlPooledConnection = PooledConnection<ConnectionManager<MysqlConnect
 fn init_mysql_pool(database_url: &str) -> Result<MysqlPool, PoolError> {
   let manager = ConnectionManager::<MysqlConnection>::new(database_url);
   Pool::builder()
-    .max_size(64)
+    .max_size(16)
     .test_on_check_out(true)
     .build(manager)
   // .map_err(|e| e.into())

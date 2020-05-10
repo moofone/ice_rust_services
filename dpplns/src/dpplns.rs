@@ -148,9 +148,6 @@ async fn main() {
     load_shares_from_db(&mut *sha, &mut *sco);
   }
 
-  //setup nats
-  let mysql_pool = establish_mysql_connection();
-
   let nc = establish_nats_connection();
   let coins: Vec<i32> = vec![2422, 2122];
   // add each of the subscriptions in
@@ -189,11 +186,10 @@ async fn main() {
   //-----------------------BLOCKS LISTENER----------------------------
   {
     // subscribe to the nats blocks channel
-    let block_sub = nc.subscribe("blocks").unwrap();
+    let block_sub = nc.queue_subscribe("blocks", "dpplns_worker").unwrap();
 
-    // grab a copy of the pool fro the listener
-    let mysql_pool = mysql_pool.clone();
-
+    //setup msqyl
+    let mysql_pool = establish_mysql_connection();
     // grab a copy of user_users to be passed into listener thread
     let user_scores = user_scores_map.clone();
 
@@ -424,7 +420,7 @@ fn load_shares_from_db(
       (time_window_start + step_size) as i64,
     );
     time_window_start += step_size;
-    // println!("Queryied {}", new_shares.len());
+    println!("Queryied {}", new_shares.len());
 
     for share in new_shares {
       let share = ShareMinified::from(share);
