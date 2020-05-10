@@ -51,7 +51,6 @@ async fn main() {
 
     let insert_task = tokio::spawn(async move {
       let mut interval = time::interval(Duration::from_millis(INSERTINTERVAL));
-      let conn = pg_pool.get().unwrap();
       loop {
         interval.tick().await;
 
@@ -67,11 +66,16 @@ async fn main() {
           shares_vec.push(shares.pop_front().unwrap());
         }
         println!("Shares to be inserted {}", shares_vec.len());
+        let pg_pool = pg_pool.clone();
 
-        if shares_vec.len() > 0 {
-          // insert the array
-          insert_shares_pg(&conn, shares_vec).expect("Share insert failed");
-        }
+        tokio::spawn(async move {
+          let conn = pg_pool.get().unwrap();
+
+          if shares_vec.len() > 0 {
+            // insert the array
+            insert_shares_pg(&conn, shares_vec).expect("Share insert failed");
+          }
+        });
       }
     });
     tasks.push(insert_task);
