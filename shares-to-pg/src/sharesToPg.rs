@@ -68,8 +68,10 @@ async fn main() {
         }
         println!("Shares to be inserted {}", shares_vec.len());
 
-        // insert the array
-        insert_shares_pg(&conn, shares_vec).expect("Share insert failed");
+        if shares_vec.len() > 0 {
+          // insert the array
+          insert_shares_pg(&conn, shares_vec).expect("Share insert failed");
+        }
       }
     });
     tasks.push(insert_task);
