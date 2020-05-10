@@ -24,9 +24,6 @@ final goal (ShareMin => min usable data for a share that will go into the queue)
 */
 
 extern crate shared;
-// use nats;
-// use serde::{Deserialize, Serialize};
-// use diesel::r2d2::{ConnectionManager, Pool, PoolError, PooledConnection};
 use diesel::prelude::*;
 use shared::db_mysql::{
   establish_mysql_connection,
@@ -45,11 +42,9 @@ use shared::db_pg::{
 use shared::enums::*;
 
 use std::collections::{HashMap, VecDeque};
-// use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
-// pub type PooledConnection = diesel<r2d2<PooledConnection>>;
 // constants
 const NORMAL_FEE: f64 = 0.01;
 const SOLO_FEE: f64 = 0.02;
@@ -157,7 +152,6 @@ async fn main() {
   let mysql_pool = establish_mysql_connection();
 
   let nc = establish_nats_connection();
-  // let nc = nats::connect("nats://192.168.2.10:4222").unwrap();
   let coins: Vec<i32> = vec![2422, 2122];
   // add each of the subscriptions in
   // let mut share_subs: Vec<nats::subscription::Subscription> = Vec::new();
@@ -225,31 +219,6 @@ async fn main() {
             }
           });
         }
-
-        // let mut interval = time::interval(Duration::from_millis(50));
-        // interval.tick().await;
-
-        // loop {
-        //   let mysql_pool = mysql_pool.clone();
-
-        //   if let Some(msg) = block_sub.try_next() {
-        //     // let pool = pool.clone();
-        //     let user_scores = user_scores.clone();
-        //     tokio::spawn({
-        //       async move {
-        //         let block = parse_block(&msg.data.clone());
-        //         let sco = user_scores.lock().unwrap();
-        //         let earnings_dict = dpplns(&block, &*sco);
-        //         drop(sco);
-
-        //         let mut conn = mysql_pool.get().unwrap();
-        //         insert_earnings(&block, earnings_dict, &mut conn);
-        //       }
-        //     });
-        //   } else {
-        //     interval.tick().await;
-        //   }
-        // }
       }
     });
     tasks.push(block_task);
@@ -260,7 +229,6 @@ async fn main() {
     let user_scores = user_scores_map.clone();
     let trim_task = tokio::spawn(async move {
       let mut interval = time::interval(Duration::from_millis(2000));
-      // let mut count = 0;
       loop {
         interval.tick().await;
 
@@ -377,11 +345,11 @@ fn insert_earnings(block: &BlockNats, earnings_dict: EarningMapType, pool_conn: 
       stratum: block.stratum_id.clone(),
     });
   }
-  // let e = insert_earnings_mysql(pool_conn, earnings);
-  // match e {
-  //   Ok(success) => println!("Earnings Inserted"),
-  //   Err(e) => println!("Earnings Insert Failed: {}", e),
-  // }
+  let e = insert_earnings_mysql(pool_conn, earnings);
+  match e {
+    Ok(success) => println!("Earnings Inserted"),
+    Err(e) => println!("Earnings Insert Failed: {}", e),
+  }
 }
 
 // generates a key from the share to be used in the user scores hashmap

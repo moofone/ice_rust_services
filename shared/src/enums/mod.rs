@@ -2,8 +2,8 @@ use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Coins {
-  DEFAULT = 0,
-  PRIMARY = 1,
+  MWC = 2422,
+  VTC = 2122,
   SECONDARY = 2,
   CUCKOO = 3,
   CUCKOO29 = 4,
