@@ -103,13 +103,16 @@ async fn main() {
           Ok(conn) => conn,
           Err(err) => panic!("error getting mysql connection: {}", err),
         };
-        let mut time_window_start = SystemTime::now()
+        let time_window_start = SystemTime::now()
           .duration_since(UNIX_EPOCH)
           .unwrap()
           .as_secs()
           - WINDOW_LENGTH;
         println!("DELETING SHARES");
-        delete_shares_older_than(&conn, time_window_start as i64);
+        match delete_shares_older_than(&conn, time_window_start as i64) {
+          Ok(_) => (),
+          Err(err) => println!("Deleting shares failed: {}", err),
+        };
       }
     });
     tasks.push(clean_task);
@@ -119,10 +122,13 @@ async fn main() {
     handle.await.unwrap();
   }
 }
-fn parse_share(msg: &Vec<u8>) -> Result<SharePGInsertable, std::io::Error> {
+fn parse_share(msg: &Vec<u8>) -> Result<SharePGInsertable, rmp_serde::decode::Error> {
   // Some JSON input data as a &str. Maybe this comes from the user.
   // Parse the string of data into serde_json::Value.
-  let s: ShareNats = serde_json::from_slice(&msg)?;
+  let s: ShareNats = match rmp_serde::from_read_ref(&msg) {
+    Ok(s) => s,
+    Err(err) => return Err(err),
+  };
   let share = sharenats_to_sharepginsertable(s);
   Ok(share)
 }

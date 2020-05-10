@@ -120,6 +120,7 @@ pub struct Earning {
   pub status: i32,
   pub mode: String,
   pub stratum_id: i16,
+  pub algo: i16,
 }
 
 impl Default for Earning {
@@ -134,6 +135,7 @@ impl Default for Earning {
       status: 0,
       mode: "".to_string(),
       stratum_id: 0,
+      algo: 0,
     }
   }
 }
@@ -149,6 +151,8 @@ pub struct EarningMYSQLInsertable {
   pub status: i32,
   pub mode: String,
   pub stratum_id: i16,
+  pub algo: i16,
+  pub party_pass: String,
 }
 
 /// Block model.

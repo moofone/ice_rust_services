@@ -1,15 +1,16 @@
 extern crate rand;
+
+use rmp_serde;
 extern crate shared;
 use dotenv::dotenv;
 use rand::Rng;
-use serde_json;
 use shared::nats::establish_nats_connection;
 use shared::nats::models::{BlockNats, ShareNats};
 use std::env;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 static BLOCKINTERVAL: u64 = 8000;
-static SHAREINTERVAL: u64 = 1;
+static SHAREINTERVAL: u64 = 500;
 
 #[tokio::main]
 async fn main() {
@@ -39,8 +40,9 @@ async fn main() {
         for mut block in blocks {
           block.id = rng.gen::<i32>().abs();
 
-          let json = serde_json::to_vec(&block).unwrap();
-          match nc.publish(&channel, json) {
+          let msgpack_data = rmp_serde::to_vec(&block).unwrap();
+
+          match nc.publish(&channel, msgpack_data) {
             Ok(val) => (),
             Err(err) => println!("err: {}", err),
           }
@@ -67,7 +69,7 @@ async fn main() {
         // set the channel
         let channel = format!("shares.{}", shares[0].coin_id);
         // json and publish
-        let json = serde_json::to_vec(&shares[0]).unwrap();
+        let json = rmp_serde::to_vec(&shares[0]).unwrap();
         match nc.publish(&channel, &json) {
           Ok(_) => (),
           Err(err) => println!("share first failed"),
@@ -86,7 +88,7 @@ async fn main() {
           // set the channel
           let channel = format!("shares.{}", share.coin_id);
           // json and publish
-          let json = serde_json::to_vec(&share).unwrap();
+          let json = rmp_serde::to_vec(&share).unwrap();
           match nc.publish(&channel, &json) {
             Ok(_) => (),
             Err(err) => println!("share next failed"),
@@ -193,7 +195,7 @@ fn create_shares() -> Vec<ShareNats> {
     block_diff: 5.0,
     block_reward: 10.0,
     algo: 2,
-    mode: 0,
+    mode: 1,
     party_pass: "12345".to_string(),
     stratum_id: stratum_id,
   });

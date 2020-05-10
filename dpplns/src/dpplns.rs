@@ -118,6 +118,9 @@ struct Earning {
   status: i32,
   amount: f64,
   mode: i32,
+  algo: i16,
+  stratum_id: i16,
+  party_pass: String,
 }
 impl Earning {
   // fn to_EarningMYSQLInsertable() -> EarningMYSQLInsertable {}
@@ -163,7 +166,10 @@ async fn main() {
       let user_scores = user_scores_map.clone();
       let share_task = tokio::spawn(async move {
         for msg in sub.messages() {
-          let share = parse_share(&msg.data);
+          let share = match parse_share(&msg.data) {
+            Ok(val) => val,
+            Err(err) => continue,
+          };
           let mut sha = shares.lock().unwrap();
           let mut sco = user_scores.lock().unwrap();
           handle_share(&mut *sco, &mut *sha, share);
@@ -205,7 +211,10 @@ async fn main() {
           let user_scores = user_scores.clone();
           tokio::spawn({
             async move {
-              let block = parse_block(&msg.data);
+              let block = match parse_block(&msg.data) {
+                Ok(val) => val,
+                Err(err) => panic!("block parse failed"),
+              };
               let sco = user_scores.lock().unwrap();
               let earnings_dict = dpplns(&block, &*sco);
               drop(sco);
@@ -339,6 +348,8 @@ fn insert_earnings(block: &BlockNats, earnings_dict: EarningMapType, pool_conn: 
       amount: *val,
       mode: ShareModes::from_i16(block.mode).to_string(),
       stratum_id: block.stratum_id,
+      algo: block.algo,
+      party_pass: block.party_pass.to_string(),
     });
   }
   let e = insert_earnings_mysql(pool_conn, earnings);
@@ -368,18 +379,24 @@ fn dict_key_gen(mode: &ShareModes, coin_id: i16, algo: &Algos, party_pass: &Stri
 
 // TODO: MsgPack with lz4 compression for shares
 // converts nats message to sharenats and then to share minified
-fn parse_share(msg: &Vec<u8>) -> ShareMinified {
+fn parse_share(msg: &Vec<u8>) -> Result<ShareMinified, rmp_serde::decode::Error> {
   // Some JSON input data as a &str. Maybe this comes from the user.
   // Parse the string of data into serde_json::Value.
-  let s: ShareNats = serde_json::from_slice(&msg).unwrap();
+  let s: ShareNats = match rmp_serde::from_read_ref(&msg) {
+    Ok(s) => s,
+    Err(err) => return Err(err),
+  };
   let share = ShareMinified::from(s);
-  return share;
+  Ok(share)
 }
 
 // converts nats message to blocknats
-fn parse_block(msg: &Vec<u8>) -> BlockNats {
-  let b: BlockNats = serde_json::from_slice(&msg).unwrap();
-  return b;
+fn parse_block(msg: &Vec<u8>) -> Result<BlockNats, rmp_serde::decode::Error> {
+  let b: BlockNats = match rmp_serde::from_read_ref(&msg) {
+    Ok(b) => b,
+    Err(err) => return Err(err),
+  };
+  Ok(b)
 }
 
 // add share to queue and add share to map

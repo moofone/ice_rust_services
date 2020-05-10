@@ -29,7 +29,9 @@ table! {
     amount -> Double,
     status -> Integer,
     mode -> Text,
+    algo -> SmallInt,
     stratum_id -> SmallInt,
+    party_pass -> Text,
   }
 }
 
