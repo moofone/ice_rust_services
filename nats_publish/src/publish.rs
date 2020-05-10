@@ -1,12 +1,13 @@
 extern crate rand;
 extern crate shared;
+use dotenv::dotenv;
 use rand::Rng;
 use serde_json;
 use shared::nats::establish_nats_connection;
 use shared::nats::models::{BlockNats, ShareNats};
+use std::env;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
-
 static BLOCKINTERVAL: u64 = 8000;
 static SHAREINTERVAL: u64 = 5;
 
@@ -101,6 +102,11 @@ async fn main() {
 }
 
 fn create_blocks() -> Vec<BlockNats> {
+  dotenv().ok();
+  let stratum_id = env::var("STRATUM_ID")
+    .expect("STRATUM_ID must be set")
+    .parse::<i16>()
+    .unwrap();
   let mut blocks: Vec<BlockNats> = Vec::new();
   blocks.push(BlockNats {
     id: 100,
@@ -119,7 +125,7 @@ fn create_blocks() -> Vec<BlockNats> {
     blockhash: "234".to_string(), //String,
     algo: 2,       //i8,
     category: "null".to_string(), //String,
-    stratum_id: "alpha".to_string(), //String,
+    stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
   });
@@ -140,7 +146,7 @@ fn create_blocks() -> Vec<BlockNats> {
     blockhash: "234".to_string(), //String,
     algo: 2,       //i8,
     category: "null".to_string(), //String,
-    stratum_id: "alpha".to_string(), //String,
+    stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
   });
@@ -161,13 +167,18 @@ fn create_blocks() -> Vec<BlockNats> {
     blockhash: "234".to_string(), //String,
     algo: 2,       //i8,
     category: "null".to_string(), //String,
-    stratum_id: "alpha".to_string(), //String,
+    stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
   });
   blocks
 }
 fn create_shares() -> Vec<ShareNats> {
+  dotenv().ok();
+  let stratum_id = env::var("STRATUM_ID")
+    .expect("STRATUM_ID must be set")
+    .parse::<i16>()
+    .unwrap();
   let mut shares: Vec<ShareNats> = Vec::new();
   shares.push(ShareNats {
     user_id: 11111,
@@ -184,7 +195,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 0,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 11111,
@@ -201,7 +212,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 0,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 11111,
@@ -218,7 +229,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 1,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 11111,
@@ -235,7 +246,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 0,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 22222,
@@ -252,7 +263,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 0,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 333333,
@@ -269,7 +280,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 0,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 444444,
@@ -286,7 +297,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 1,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 444444,
@@ -303,7 +314,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 1,
     party_pass: "54321".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 555555,
@@ -320,7 +331,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 2,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 666666,
@@ -337,7 +348,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 2,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
   shares.push(ShareNats {
     user_id: 777777,
@@ -354,7 +365,7 @@ fn create_shares() -> Vec<ShareNats> {
     algo: 2,
     mode: 2,
     party_pass: "12345".to_string(),
-    stratum_id: 0,
+    stratum_id: stratum_id,
   });
 
   shares

@@ -13,7 +13,7 @@ table! {
     blockhash -> Text,
     algo -> Smallint,
     category -> Text,
-    stratum_id -> Text,
+    stratum_id -> Smallint,
     mode -> Smallint,
     party_pass -> Text,
   }
@@ -29,7 +29,7 @@ table! {
     amount -> Double,
     status -> Integer,
     mode -> Smallint,
-    stratum -> Text,
+    stratum_id -> Smallint,
   }
 }
 

@@ -675,6 +675,7 @@ dependencies = [
 name = "publish_test"
 version = "0.1.0"
 dependencies = [
+ "dotenv",
  "futures",
  "natsio",
  "rand 0.7.3",

@@ -338,7 +338,7 @@ fn insert_earnings(block: &BlockNats, earnings_dict: EarningMapType, pool_conn: 
       status: 0,
       amount: *val,
       mode: ShareModes::from_i16(block.mode).to_string(),
-      stratum: block.stratum_id.clone(),
+      stratum_id: block.stratum_id,
     });
   }
   let e = insert_earnings_mysql(pool_conn, earnings);

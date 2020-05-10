@@ -120,7 +120,7 @@ pub struct Earning {
   pub amount: f64,
   pub status: i32,
   pub mode: i16,
-  pub stratum: String,
+  pub stratum_id: i16,
 }
 
 impl Default for Earning {
@@ -134,7 +134,7 @@ impl Default for Earning {
       amount: 0.0,
       status: 0,
       mode: 0,
-      stratum: "".to_string(),
+      stratum_id: 0,
     }
   }
 }
@@ -149,7 +149,7 @@ pub struct EarningInsertable {
   pub amount: f64,
   pub status: i32,
   pub mode: i16,
-  pub stratum: String,
+  pub stratum_id: i16,
 }
 
 // /// Block model.

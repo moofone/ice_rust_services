@@ -1,13 +1,10 @@
 extern crate dotenv;
 pub mod models;
 use dotenv::dotenv;
-use nats; // natsio
-          // extern crate nats; // rust-nats
-          // use nats::*; // rust-nats
-          // use rants::Client; // rants
+use nats;
 use std::env;
 
-pub type NatsConnection = nats::Connection; // natsio
+pub type NatsConnection = nats::Connection;
 
 pub fn establish_nats_connection() -> NatsConnection {
   dotenv().ok();

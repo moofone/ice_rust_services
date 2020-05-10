@@ -32,7 +32,7 @@ pub struct BlockNats {
   pub blockhash: String,
   pub algo: i16,
   pub category: String,
-  pub stratum_id: String,
+  pub stratum_id: i16,
   pub mode: i16,
   pub party_pass: String,
 }

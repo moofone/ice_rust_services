@@ -104,7 +104,7 @@ pub struct ShareMYSQLInsertable {
   pub mode: String,
   pub block_reward: f64,
   pub party_pass: String,
-  pub stratum_id: i32,
+  pub stratum_id: i16,
   pub timestamp: i64,
 }
 
@@ -119,7 +119,7 @@ pub struct Earning {
   pub amount: f64,
   pub status: i32,
   pub mode: String,
-  pub stratum: String,
+  pub stratum_id: i16,
 }
 
 impl Default for Earning {
@@ -133,7 +133,7 @@ impl Default for Earning {
       amount: 0.0,
       status: 0,
       mode: "".to_string(),
-      stratum: "".to_string(),
+      stratum_id: 0,
     }
   }
 }
@@ -148,7 +148,7 @@ pub struct EarningMYSQLInsertable {
   pub amount: f64,
   pub status: i32,
   pub mode: String,
-  pub stratum: String,
+  pub stratum_id: i16,
 }
 
 /// Block model.
@@ -167,7 +167,7 @@ pub struct Block {
   pub blockhash: String,
   pub algo: String,
   pub category: String,
-  pub stratum_id: String,
+  pub stratum_id: i16,
   pub mode: String,
   pub party_pass: String,
 }
@@ -188,7 +188,7 @@ impl Default for Block {
       blockhash: "".to_string(),
       algo: "".to_string(),
       category: "new".to_string(),
-      stratum_id: "".to_string(),
+      stratum_id: 0,
       mode: "norm".to_string(),
       party_pass: "".to_string(),
     }
