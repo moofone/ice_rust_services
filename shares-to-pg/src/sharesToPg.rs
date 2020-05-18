@@ -20,7 +20,7 @@ async fn main() {
   let mut tasks = Vec::new();
   //setup nats
   let nc = establish_nats_connection();
-  let coins: Vec<i32> = vec![2422];
+  let coins: Vec<i32> = vec![2422,1234];
   let pg_pool = establish_pg_connection();
   let shares: VecDeque<SharePGInsertable> = VecDeque::new();
   let shares = Arc::new(Mutex::new(shares));
@@ -67,13 +67,17 @@ async fn main() {
 
         // create a new vec for insertable shares
         let mut shares_vec: Vec<SharePGInsertable> = Vec::new();
-        println!("Shares Moved from queue to vec {}", shares.len());
+        if shares.len() > 0 {
+					println!("Shares Moved from queue to vec {}", shares.len());
+				}
 
         // empty the queue into the vec
         while shares.len() > 0 {
           shares_vec.push(shares.pop_front().unwrap());
         }
-        println!("Shares to be inserted {}", shares_vec.len());
+        if shares_vec.len() > 0 { 
+					println!("Shares to be inserted {}", shares_vec.len());
+				}
         let pg_pool = pg_pool.clone();
 
         tokio::spawn(async move {
@@ -108,7 +112,7 @@ async fn main() {
           .unwrap()
           .as_secs()
           - WINDOW_LENGTH;
-        println!("DELETING SHARES");
+        //println!("DELETING SHARES");
         match delete_shares_older_than(&conn, time_window_start as i64) {
           Ok(_) => (),
           Err(err) => println!("Deleting shares failed: {}", err),

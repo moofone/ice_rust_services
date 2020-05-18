@@ -481,6 +481,7 @@ fn calc_score(
   let diff = difficulty;
   let b = block_reward;
   let s = diff / block_diff;
+  //let s = sqrt(MIN(diff, block_diff) / work_diff) * work_diff / 2
   let user_id = user_id;
 
   let mut share_payout = (1.0 - f) * (s * b);
