@@ -23,12 +23,13 @@ final goal (ShareMin => min usable data for a share that will go into the queue)
 
 */
 
+const DEBUG_MODE: bool = false;
+
 extern crate shared;
 use diesel::prelude::*;
 use shared::db_mysql::{
-  establish_mysql_connection,
-  helpers::earnings::insert_earnings_mysql,
-  models::{EarningMYSQLInsertable, ShareMYSQLInsertable},
+  establish_mysql_connection, helpers::earnings::insert_earnings_mysql,
+  models::EarningMYSQLInsertable,
 };
 use shared::nats::{
   establish_nats_connection,
@@ -39,35 +40,38 @@ use shared::db_pg::{
   establish_pg_connection, helpers::shares::select_shares_newer_pg, models::SharePg,
 };
 
-use shared::enums::*;
+// use shared::enums::*;
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::time;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::time::{interval_at, Duration, Instant};
 // constants
 const NORMAL_FEE: f64 = 0.01;
 const SOLO_FEE: f64 = 0.02;
 const PARTY_FEE: f64 = 0.02;
-const WINDOW_LENGTH: u64 = 2 * 60 * 60;
-
-// Minimum data required to be stored in the queue
-// share minified is used to update the hashmap
+const WINDOW_LENGTH: u64 = 300; //2 * 60 * 60;  //s
+                                //const DECAY_COUNT: u64 = WINDOW_LENGTH / DECAY_INTERVAL; // 1/decay_count cant be infiniti repeating
+                                //const DECAY_FACTOR: f64 = 1.0 / DECAY_COUNT as f64;
+const DECAY_INTERVAL: u64 = 15; // s
+                                // Minimum data required to be stored in the queue
+                                // share minified is used to update the hashmap
 #[derive(Debug, Clone)]
 struct ShareMinified {
   user_id: i32,
   coin_id: i16,
-  algo: Algos,
+  algo: i16,
   time: i64,
   share_payout: f64,
-  mode: ShareModes,
+  mode: i16,
   party_pass: String,
+  // decay_counter: i16,
 }
 // convert incoming shareNats into shareminified
 impl From<ShareNats> for ShareMinified {
   fn from(s: ShareNats) -> Self {
     let score = calc_score(
-      ShareModes::from_i16(s.mode),
+      s.mode,
       s.coin_id,
       s.user_id,
       s.difficulty,
@@ -77,11 +81,12 @@ impl From<ShareNats> for ShareMinified {
     ShareMinified {
       user_id: s.user_id,
       coin_id: s.coin_id,
-      algo: Algos::from_i16(s.algo),
+      algo: s.algo,
       time: s.timestamp,
       share_payout: score,
-      mode: ShareModes::from_i16(s.mode),
+      mode: s.mode,
       party_pass: s.party_pass,
+      // decay_counter: 0,
     }
   }
 }
@@ -89,7 +94,7 @@ impl From<ShareNats> for ShareMinified {
 impl From<SharePg> for ShareMinified {
   fn from(s: SharePg) -> Self {
     let score = calc_score(
-      ShareModes::from_i16(s.mode),
+      s.mode,
       s.coin_id,
       s.user_id,
       s.difficulty,
@@ -99,11 +104,12 @@ impl From<SharePg> for ShareMinified {
     ShareMinified {
       user_id: s.user_id,
       coin_id: s.coin_id,
-      algo: Algos::from_i16(s.algo),
+      algo: s.algo,
       time: s.time,
       share_payout: score,
-      mode: ShareModes::from_i16(s.mode),
+      mode: s.mode,
       party_pass: s.party_pass,
+      // decay_counter: 0,
     }
   }
 }
@@ -136,6 +142,9 @@ type EarningMapType = HashMap<i32, f64>;
 
 #[tokio::main]
 async fn main() {
+  let _guard =
+    sentry::init("https://92ab0e2cb960401faac0f0d78ee69316@sentry.watlab.icemining.ca/5");
+  sentry::integrations::panic::register_panic_handler();
   // let _guard =
   //   sentry::init("hhttps://3741efe24e524656911739231c935b7b@sentry.watlab.icemining.ca/4");
   // sentry::capture_message("Hello World!", sentry::Level::Info);
@@ -149,45 +158,39 @@ async fn main() {
     let mut sha = shares_queue.lock().unwrap();
     let mut sco = user_scores_map.lock().unwrap();
     load_shares_from_db(&mut *sha, &mut *sco);
+    rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha)
   }
 
-  let nc = establish_nats_connection();
-  let coins: Vec<i32> = vec![2422, 2122];
+  println!("{:?}", user_scores_map);
+  let nc = match establish_nats_connection() {
+    Ok(n) => n,
+    Err(e) => panic!("Nats did not connect: {}", e),
+  };
+  // let coins: Vec<i32> = vec![2422, 2122];
   // add each of the subscriptions in
   // let mut share_subs: Vec<nats::subscription::Subscription> = Vec::new();
   // setup threads array
   let mut tasks = Vec::new();
   //-----------------------SHARES LISTENER--------------------------------
   {
-    for coin in coins {
-      let channel = format!("shares.{}", coin.to_string());
-      let sub = nc.subscribe(&channel).unwrap();
-      let shares = shares_queue.clone();
-      let user_scores = user_scores_map.clone();
-      let share_task = tokio::spawn(async move {
-        for msg in sub.messages() {
-          let share = match parse_share(&msg.data) {
-            Ok(val) => val,
-            Err(err) => continue,
-          };
-          let mut sha = shares.lock().unwrap();
-          let mut sco = user_scores.lock().unwrap();
-          handle_share(&mut *sco, &mut *sha, share);
-        }
-        // let mut interval = time::interval(Duration::from_millis(1));
-        // loop {
-        //   if let Some(msg) = sub.try_next() {
-        //     let share = parse_share(&msg.data);
-        //     let mut sha = shares.lock().unwrap();
-        //     let mut sco = user_scores.lock().unwrap();
-        //     handle_share(&mut *sco, &mut *sha, share);
-        //   } else {
-        //     interval.tick().await;
-        //   }
-        // }
-      });
-      tasks.push(share_task);
-    }
+    // for coin in coins {
+    let channel = format!("shares.>");
+    let sub = nc.subscribe(&channel).unwrap();
+    let shares = shares_queue.clone();
+    let user_scores = user_scores_map.clone();
+    let share_task = tokio::spawn(async move {
+      for msg in sub.messages() {
+        let share = match parse_share(&msg.data) {
+          Ok(val) => val,
+          Err(_) => continue,
+        };
+        let mut sha = shares.lock().unwrap();
+        let mut sco = user_scores.lock().unwrap();
+        handle_share(&mut *sco, &mut *sha, share);
+      }
+    });
+    tasks.push(share_task);
+    // }
   }
   //-----------------------BLOCKS LISTENER----------------------------
   {
@@ -213,7 +216,7 @@ async fn main() {
             async move {
               let block = match parse_block(&msg.data) {
                 Ok(val) => val,
-                Err(err) => panic!("block parse failed"),
+                Err(_) => panic!("block parse failed"),
               };
               let sco = user_scores.lock().unwrap();
               let earnings_dict = dpplns(&block, &*sco);
@@ -228,21 +231,42 @@ async fn main() {
     });
     tasks.push(block_task);
   }
-  //--------------------------TRIM TIMER----------------------------
+  // //--------------------------TRIM TIMER----------------------------
+  // {
+  //   let shares = shares_queue.clone();
+  //   let user_scores = user_scores_map.clone();
+  //   let trim_task = tokio::spawn(async move {
+  //     let mut interval = time::interval(Duration::from_millis(1000));
+  //     loop {
+  //       interval.tick().await;
+
+  //       let mut sha = shares.lock().unwrap();
+  //       let mut sco = user_scores.lock().unwrap();
+  //       rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha)
+  //       // trim_shares_from_queue_and_map(&mut *sco, &mut *sha);
+  //     }
+  //   });
+  //   tasks.push(trim_task);
+  // }
+  //--------------------------DECAY TIMER----------------------------
   {
     let shares = shares_queue.clone();
     let user_scores = user_scores_map.clone();
-    let trim_task = tokio::spawn(async move {
-      let mut interval = time::interval(Duration::from_millis(2000));
+    let decay_task = tokio::spawn(async move {
+      let mut interval = interval_at(
+        Instant::now() + Duration::from_millis(DECAY_INTERVAL * 1000),
+        Duration::from_millis(DECAY_INTERVAL * 1000),
+      );
+
       loop {
         interval.tick().await;
 
         let mut sha = shares.lock().unwrap();
         let mut sco = user_scores.lock().unwrap();
-        trim_shares_from_queue_and_map(&mut *sco, &mut *sha);
+        rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha);
       }
     });
-    tasks.push(trim_task);
+    tasks.push(decay_task);
   }
 
   for handle in tasks {
@@ -257,27 +281,27 @@ fn dpplns(block: &BlockNats, dict: &UserScoreMapType) -> EarningMapType {
   // let log = "".to_string();
 
   // setup block fees and log
-  match ShareModes::from_i16(block.mode) {
-    ShareModes::NORMAL => {
-      println!(
-        "Normal Block: {} Reward: {}, Fee: {}%",
-        block.coin_id,
-        block.amount,
-        f * 100.0
-      );
+  match block.mode {
+    0 => {
+      // println!(
+      //   "Normal Block: {} Reward: {}, Fee: {}%",
+      //   block.coin_id,
+      //   block.amount,
+      //   f * 100.0
+      // );
     }
-    ShareModes::PARTY => {
+    1 => {
       let share_payout = (1.0 - PARTY_FEE as f64) * block.amount;
       let party_pass = &block.party_pass;
       f = PARTY_FEE;
-      println!(
-        "Block Party: {} Payout: {}, Fee: {}%",
-        &party_pass,
-        share_payout,
-        f * 100.0
-      );
+      // println!(
+      //   "Block Party: {} Payout: {}, Fee: {}%",
+      //   &party_pass,
+      //   share_payout,
+      //   f * 100.0
+      // );
     }
-    ShareModes::SOLO => {
+    2 => {
       let share_payout = (1.0 - SOLO_FEE as f64) * block.amount;
       println!(
         "YOLO SOLO!! B: {} Payout: {}, Fee: {}%",
@@ -288,15 +312,13 @@ fn dpplns(block: &BlockNats, dict: &UserScoreMapType) -> EarningMapType {
       earnings_dict.insert(block.userid, share_payout);
       return earnings_dict;
     }
+    _ => {
+      println!("WHY DIDNT THIS BLOCK HAVE A MODE????");
+    }
   }
 
   // copy proper dict over
-  let key: String = dict_key_gen(
-    &ShareModes::from_i16(block.mode),
-    block.coin_id,
-    &Algos::from_i16(block.algo),
-    &block.party_pass,
-  );
+  let key: String = dict_key_gen(block.mode, block.coin_id, block.algo, &block.party_pass);
   let key_exists = dict.contains_key(&key);
   if key_exists == false {
     println!("block failed, invalid dict key: {}", &key);
@@ -321,13 +343,13 @@ fn dpplns(block: &BlockNats, dict: &UserScoreMapType) -> EarningMapType {
     sum += scaled_amount;
   }
 
-  println!(
-    "Payment Complete! {} Total Earnings: {} Target Block Payout: {} Elapsed Time: {}",
-    earnings_dict.len(),
-    sum,
-    tgt_block_payout,
-    0
-  );
+  // println!(
+  //   "Payment Complete! {} Total Earnings: {} Target Block Payout: {} Elapsed Time: {}",
+  //   earnings_dict.len(),
+  //   sum,
+  //   tgt_block_payout,
+  //   0
+  // );
   if earnings_dict.len() == 0 {
     panic!("earnings dict empty");
   };
@@ -338,33 +360,50 @@ fn dpplns(block: &BlockNats, dict: &UserScoreMapType) -> EarningMapType {
 // inserts earnings into the databases
 fn insert_earnings(block: &BlockNats, earnings_dict: EarningMapType, pool_conn: &MysqlConnection) {
   let mut earnings: Vec<EarningMYSQLInsertable> = Vec::new();
+  let create_time = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap()
+    .as_secs();
   for (&user_id, val) in earnings_dict.iter() {
     earnings.push(EarningMYSQLInsertable {
       userid: user_id,
       coinid: block.coin_id as i32,
       blockid: block.id,
-      // createtime: block.time,
+      create_time: create_time as i32,
       status: 0,
       amount: *val,
-      mode: ShareModes::from_i16(block.mode).to_string(),
+      mode: {
+        match block.mode {
+          0 => "normal".to_string(),
+          1 => "party".to_string(),
+          2 => "solo".to_string(),
+          _ => {
+            println!("WHY DIDNT THIS BLOCK HAVE A MODE????");
+            "normal".to_string()
+          }
+        }
+      },
       stratum_id: block.stratum_id,
       algo: block.algo,
       party_pass: block.party_pass.to_string(),
     });
   }
-  let e = insert_earnings_mysql(pool_conn, earnings);
-  match e {
-    Ok(success) => println!("Earnings Inserted"),
-    Err(e) => println!("Earnings Insert Failed: {}", e),
+
+  if DEBUG_MODE == false {
+    let e = insert_earnings_mysql(pool_conn, earnings);
+    match e {
+      Ok(_) => (), //println!("Earnings Inserted"),
+      Err(e) => println!("Earnings Insert Failed: {}", e),
+    }
   }
 }
 
 // generates a key from the share to be used in the user scores hashmap
-fn dict_key_gen(mode: &ShareModes, coin_id: i16, algo: &Algos, party_pass: &String) -> String {
+fn dict_key_gen(mode: i16, coin_id: i16, algo: i16, party_pass: &String) -> String {
   let key;
   match mode {
-    ShareModes::NORMAL => key = format!("N:{}-{}", coin_id.to_string(), algo.to_string()),
-    ShareModes::PARTY => {
+    0 => key = format!("N:{}-{}", coin_id.to_string(), algo.to_string()),
+    1 => {
       key = format!(
         "P:{}-{}-{}",
         coin_id.to_string(),
@@ -401,8 +440,10 @@ fn parse_block(msg: &Vec<u8>) -> Result<BlockNats, rmp_serde::decode::Error> {
 
 // add share to queue and add share to map
 fn handle_share(dict: &mut UserScoreMapType, shares: &mut ShareQueueType, share: ShareMinified) {
-  add_share_to_queue(shares, share.clone());
-  update_map_with_new_share(dict, share.clone());
+  // pass reference of the share to map to be updated
+  update_map_with_new_share(dict, &share);
+  // move the share to the queue to be added
+  add_share_to_queue(shares, share);
 }
 
 // load shares in from postgres on restart of dpplns service
@@ -437,20 +478,45 @@ fn load_shares_from_db(
       (time_window_start + step_size) as i64,
     );
     time_window_start += step_size;
-    println!("Queryied {}", new_shares.len());
+    // println!("Queryied {}", new_shares.len());
 
     for share in new_shares {
       let share = ShareMinified::from(share);
+      // decay the share initially
+      // share.share_payout *= calc_decay_factor(time_now as i64, share.time);
       handle_share(user_scores_map, shares_queue, share);
     }
-    // println!("Shares Processed");
+    println!("Shares Processed");
   }
-  println!("Queue size {}", shares_queue.len());
+  // println!("Queue size {}", shares_queue.len());
+  // println!("{:?}", map);
 }
 
+fn calc_decay_factor(time_current: i64, time_share: i64) -> f64 {
+  // get the number of times it should be decayed
+  //let number_of_decays = (time_current - time_share) / DECAY_INTERVAL as i64;
+
+  // current - share time / window length gives us a value between 0 and 1
+  let x_axis_value = std::cmp::max((time_current - time_share) / WINDOW_LENGTH as i64, 1) as f64;
+
+  // y = -x + 1  (linear decay over the full window_length)
+  -x_axis_value + 1.0
+
+  // println!(
+  //   "time_current: {}, time_share: {}, num_decays: {}, factor: {}",
+  //   time_current,
+  //   time_share,
+  //   number_of_decays,
+  //   1.0 - DECAY_FACTOR * number_of_decays as f64 //DECAY_FACTOR.powi(number_of_decays as i32)
+  // );
+}
+// fn calc_decay_count(time_current: i32, time_share: i32) -> i16 {
+//   // need to increment the decay_count 1 time per DECAY_INTERVAL old
+//   ((time_current - time_share) / DECAY_INTERVAL as i32) as i16
+// }
 // calculate the base share value
 fn calc_score(
-  mode: ShareModes,
+  mode: i16,
   coin_id: i16,
   user_id: i32,
   difficulty: f64,
@@ -458,7 +524,7 @@ fn calc_score(
   block_reward: f64,
 ) -> f64 {
   // solo shares dont need to keep score
-  if mode == ShareModes::SOLO {
+  if mode == 2 {
     return 1.0;
   }
 
@@ -474,7 +540,7 @@ fn calc_score(
     _ => f = NORMAL_FEE,
   }
 
-  if mode as i8 == ShareModes::PARTY as i8 {
+  if mode == 1 {
     f = PARTY_FEE
   }
 
@@ -494,7 +560,8 @@ fn calc_score(
   }
 
   // return the share_payout
-  share_payout
+  10.0
+  //share_payout
 }
 
 // adds a minified share to the queue
@@ -503,12 +570,12 @@ fn add_share_to_queue(shares_queue: &mut ShareQueueType, share: ShareMinified) {
 }
 
 // add a share to the map but increaking the user's value
-fn update_map_with_new_share(map: &mut UserScoreMapType, share_obj: ShareMinified) {
+fn update_map_with_new_share(map: &mut UserScoreMapType, share_obj: &ShareMinified) {
   // generate a key for the dictionary based on the share
   let key: String = dict_key_gen(
-    &share_obj.mode,
+    share_obj.mode,
     share_obj.coin_id,
-    &share_obj.algo,
+    share_obj.algo,
     &share_obj.party_pass,
   );
 
@@ -529,58 +596,139 @@ fn update_map_with_new_share(map: &mut UserScoreMapType, share_obj: ShareMinifie
   }
 }
 
-// removes a share from the map by updating its value
-fn update_map_by_removing_share(map: &mut UserScoreMapType, share_obj: ShareMinified) {
-  // generate a key for the dictionary based on the share
-  let key: String = dict_key_gen(
-    &share_obj.mode,
-    share_obj.coin_id,
-    &share_obj.algo,
-    &share_obj.party_pass,
-  );
+// // removes a share from the map by updating its value
+// fn update_map_by_removing_share(map: &mut UserScoreMapType, share_obj: ShareMinified) {
+//   // generate a key for the dictionary based on the share
+//   let key: String = dict_key_gen(
+//     share_obj.mode,
+//     share_obj.coin_id,
+//     share_obj.algo,
+//     &share_obj.party_pass,
+//   );
 
-  // set the user_scores map to the proper key
-  if !map.contains_key(&key) {
-    panic!("WTF HOW DID WE GET HERE GREG????");
-  }
-  let user_scores = map.get_mut(&key).unwrap();
+//   // set the user_scores map to the proper key
+//   if !map.contains_key(&key) {
+//     panic!("WTF HOW DID WE GET HERE GREG????");
+//   }
+//   let user_scores = map.get_mut(&key).unwrap();
 
-  // update user score
-  if let Some(score) = user_scores.get_mut(&share_obj.user_id) {
-    *score -= share_obj.share_payout;
-    // println!("{}", 1e-9);
-    // remove user if down to 0
-    if *score <= 1e-9 {
-      user_scores.remove(&share_obj.user_id);
-    }
-  }
+//   // update user score
+//   if let Some(score) = user_scores.get_mut(&share_obj.user_id) {
+//     *score -= share_obj.share_payout;
+//     // println!("{}", 1e-9);
+//     // remove user if down to 0
+//     if *score <= 1e-9 {
+//       user_scores.remove(&share_obj.user_id);
+//     }
+//   }
 
-  // drop the entire key if its empty
-  if user_scores.len() == 0 {
-    map.remove(&key);
-  }
-}
+//   // drop the entire key if its empty
+//   if user_scores.len() == 0 {
+//     map.remove(&key);
+//   }
+// }
+// // removes a share from the map by updating its value
+// fn update_map_by_decaying_share(
+//   map: &mut UserScoreMapType,
+//   share_obj: &mut ShareMinified,
+//   time_current: i64,
+// ) {
+//   // generate a key for the dictionary based on the share
+//   let key: String = dict_key_gen(
+//     share_obj.mode,
+//     share_obj.coin_id,
+//     share_obj.algo,
+//     &share_obj.party_pass,
+//   );
 
-// remove shares from the queue and update the value in the map to reflect
-// looks back to the beginning of the window length
-fn trim_shares_from_queue_and_map(mut map: &mut UserScoreMapType, shares: &mut ShareQueueType) {
-  let now = SystemTime::now();
-  let start = now.duration_since(UNIX_EPOCH).unwrap().as_secs();
-  let time_window_start = now.duration_since(UNIX_EPOCH).unwrap().as_secs() - WINDOW_LENGTH;
+//   // set the user_scores map to the proper key
+//   if !map.contains_key(&key) {
+//     // key depleted already
+//     return;
+//     // panic!("WTF HOW DID WE GET HERE GREG????");
+//   }
+//   let user_scores = map.get_mut(&key).unwrap();
+//   // println!(
+//   //   "subtract value  - {}",
+//   //   share_obj.share_payout * DECAY_FACTOR
+//   // );
+
+//   let decay_factor = calc_decay_factor(share_obj.decay_counter);
+//   // update user score
+//   if let Some(score) = user_scores.get_mut(&share_obj.user_id) {
+//     *score -= share_obj.share_payout * decay_factor;
+//     // println!("{}", 1e-9);
+//     // remove user if down to 0
+//     if *score <= 1e-9 {
+//       user_scores.remove(&share_obj.user_id);
+//     }
+//   }
+
+//   share_obj.decay_counter += 1;
+
+//   // drop the entire key if its empty
+//   if user_scores.len() == 0 {
+//     map.remove(&key);
+//   }
+// }
+
+// decay shares queue
+// loop through the queue and rebuild the map with new values
+fn rebuild_decayed_map_and_trim_queue(map: &mut UserScoreMapType, shares: &mut ShareQueueType) {
+  let time_current = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap()
+    .as_secs();
+  let start = time_current;
+  let time_window_start = time_current - WINDOW_LENGTH;
   if shares.len() == 0 {
     return;
   }
-  let mut trimmed = 0;
+
+  *map = UserScoreMapType::new();
+
+  // trim the queue first to avoid adding shares we dont want
   let mut time = shares.front().unwrap().time;
   let mut share: ShareMinified;
   while time < time_window_start as i64 && shares.len() > 0 {
     share = shares.pop_front().unwrap();
     time = share.time;
-    update_map_by_removing_share(&mut map, share);
-    trimmed += 1;
+    // update_map_by_removing_share(&mut map, share);
+    // trimmed += 1;
   }
+
+  // loop through the shares and add to the map with the new decay'ed score
+  for share in shares.iter() {
+    // println!("payout: {}", share.share_payout);
+    let mut new_share = share.clone();
+    new_share.share_payout *= calc_decay_factor(time_current as i64, new_share.time as i64);
+    // let new_share = ShareMinified {
+    //   user_id: share.user_id,
+    //   coin_id: share.coin_id,
+    //   algo: share.algo,
+    //   time: share.time,
+    //   mode: share.mode,
+    //   party_pass: share.party_pass.clone(),
+    //   share_payout: share.share_payout * calc_decay_factor(time_current as i64, share.time as i64),
+    // };
+    // share.share_payout *= calc_decay_factor(time_current as i64, share.time as i64);
+    // println!("payout: {}", share.share_payout);
+    update_map_with_new_share(map, &new_share)
+  }
+
+  //   // loop through the shares and
+  // for share in shares.iter_mut() {
+  //   // only decay if decays are left
+  //   if (share.decay_counter as u64) < DECAY_COUNT {
+  //     update_map_by_decaying_share(&mut map, share, 0);
+  //   }
+  // }
+
+  // for share in shares.iter() {
+  //   update_map_by_decaying_share(&mut map, share, 0);
+  // }
   println!(
-    "Done Trimming, map-size: {}, queue-size: {}, took: {}ms, trimmed: {}",
+    "Done Decaying and Trimming, map-size: {}, queue-size: {}, took: {}ms",
     map.len(),
     shares.len(),
     SystemTime::now()
@@ -588,7 +736,42 @@ fn trim_shares_from_queue_and_map(mut map: &mut UserScoreMapType, shares: &mut S
       .unwrap()
       .as_secs()
       - start,
-    trimmed
   );
-  // println!("{:?}", map);
+  println!("{:?}", map);
 }
+
+// // remove shares from the queue and update the value in the map to reflect
+// // looks back to the beginning of the window length
+// fn trim_shares_from_queue_and_map(mut map: &mut UserScoreMapType, shares: &mut ShareQueueType) {
+//   let now = SystemTime::now();
+//   let start = now.duration_since(UNIX_EPOCH).unwrap().as_secs();
+//   let time_window_start = now.duration_since(UNIX_EPOCH).unwrap().as_secs() - WINDOW_LENGTH;
+//   // if shares.len() == 0 {
+//   //   return;
+//   // }
+//   let mut trimmed = 0;
+//   // let mut time = shares.front().unwrap().time;
+//   // let mut share: ShareMinified;
+
+//   // while time < time_window_start as i64 && shares.len() > 0 {
+//   //   share = shares.pop_front().unwrap();
+//   //   time = share.time;
+//   //   // update_map_by_removing_share(&mut map, share);
+//   //   // trimmed += 1;
+//   // }
+
+//   //decay_queue_and_map(&mut map, &shares);
+
+//   // println!(
+//   //   "Done Trimming, map-size: {}, queue-size: {}, took: {}ms, trimmed: {}",
+//   //   map.len(),
+//   //   shares.len(),
+//   //   SystemTime::now()
+//   //     .duration_since(UNIX_EPOCH)
+//   //     .unwrap()
+//   //     .as_secs()
+//   //     - start,
+//   //   trimmed
+//   // );
+//   // println!("{:?}", map);
+// }
