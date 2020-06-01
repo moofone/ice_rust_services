@@ -41,8 +41,9 @@ pub mod shares {
     time_less_than: i64,
   ) -> Vec<SharePg> {
     let res = shares
-      .filter(time.gt(time_greater_than))
+      .filter(time.ge(time_greater_than))
       .filter(time.lt(time_less_than))
+      .order(time.asc())
       // .limit(5)
       .load::<SharePg>(conn)
       .expect("ffailed loading shares");

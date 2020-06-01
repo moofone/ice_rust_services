@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ShareNats {
   pub user_id: i32,
   pub worker_id: i32,
@@ -19,7 +19,7 @@ pub struct ShareNats {
 }
 
 /// Block model.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BlockNats {
   pub id: i32,
   pub coin_id: i16,

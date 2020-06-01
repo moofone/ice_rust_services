@@ -10,7 +10,7 @@ use std::env;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 static BLOCKINTERVAL: u64 = 8000;
-static SHAREINTERVAL: u64 = 500;
+static SHAREINTERVAL: u64 = 1;
 
 #[tokio::main]
 async fn main() {
@@ -19,8 +19,8 @@ async fn main() {
   let nc = establish_nats_connection();
   println!(
     "Pub 3 blocks every: {}s, pub 10 shares {} times/s",
-    BLOCKINTERVAL / 1000,
-    1000 / SHAREINTERVAL
+    BLOCKINTERVAL as f64 / 1000.0,
+    1000.0 / SHAREINTERVAL as f64
   );
   //---------------------------BLOCKS------------------------------
   //blocks push
@@ -69,21 +69,21 @@ async fn main() {
         // set the channel
         let channel = format!("shares.{}", shares[0].coin_id);
         // json and publish
-        let json = rmp_serde::to_vec(&shares[0]).unwrap();
-        match nc.publish(&channel, &json) {
-          Ok(_) => (),
-          Err(err) => println!("share first failed"),
-        };
+        // let json = rmp_serde::to_vec(&shares[0]).unwrap();
+        // match nc.publish(&channel, &json) {
+        //   Ok(_) => (),
+        //   Err(err) => println!("share first failed"),
+        // };
 
         for mut share in shares {
           // randomize the share
-          share.user_id = rng.gen_range(1, 1000);
+          // share.user_id = rng.gen_range(1, 1000);
           // share.coin_id = rng.gen::<i32>();
           share.timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-          share.party_pass = format!("{}", rng.gen_range(10000, 15000));
+          // share.party_pass = format!("{}", rng.gen_range(10000, 15000));
 
           // set the channel
           let channel = format!("shares.{}", share.coin_id);
@@ -184,16 +184,16 @@ fn create_shares() -> Vec<ShareNats> {
   let mut shares: Vec<ShareNats> = Vec::new();
   shares.push(ShareNats {
     user_id: 11111,
-    worker_id: 1000,
+    worker_id: 21162647,
     coin_id: 2422,
     timestamp: SystemTime::now()
       .duration_since(UNIX_EPOCH)
       .unwrap()
       .as_secs() as i64,
     difficulty: 2.3,
-    share_diff: 0.0,
-    block_diff: 5.0,
-    block_reward: 10.0,
+    share_diff: 34.45064541,
+    block_diff: 1936142.823664896,
+    block_reward: 500000000000.0,
     algo: 2,
     mode: 1,
     party_pass: "12345".to_string(),
@@ -267,108 +267,108 @@ fn create_shares() -> Vec<ShareNats> {
     party_pass: "12345".to_string(),
     stratum_id: stratum_id,
   });
-  shares.push(ShareNats {
-    user_id: 333333,
-    worker_id: 184,
-    coin_id: 2422,
-    timestamp: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64,
-    difficulty: 2.3,
-    share_diff: 801335.0,
-    block_diff: 8900987.0,
-    block_reward: 10.0,
-    algo: 2,
-    mode: 0,
-    party_pass: "12345".to_string(),
-    stratum_id: stratum_id,
-  });
-  shares.push(ShareNats {
-    user_id: 444444,
-    worker_id: 184,
-    coin_id: 2422,
-    timestamp: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64,
-    difficulty: 2.3,
-    share_diff: 801335.0,
-    block_diff: 8900987.0,
-    block_reward: 10.0,
-    algo: 2,
-    mode: 1,
-    party_pass: "12345".to_string(),
-    stratum_id: stratum_id,
-  });
-  shares.push(ShareNats {
-    user_id: 444444,
-    worker_id: 184,
-    coin_id: 2422,
-    timestamp: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64,
-    difficulty: 2.3,
-    share_diff: 801335.0,
-    block_diff: 8900987.0,
-    block_reward: 10.0,
-    algo: 2,
-    mode: 1,
-    party_pass: "54321".to_string(),
-    stratum_id: stratum_id,
-  });
-  shares.push(ShareNats {
-    user_id: 555555,
-    worker_id: 184,
-    coin_id: 2422,
-    timestamp: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64,
-    difficulty: 2.3,
-    share_diff: 801335.0,
-    block_diff: 8900987.0,
-    block_reward: 10.0,
-    algo: 2,
-    mode: 2,
-    party_pass: "12345".to_string(),
-    stratum_id: stratum_id,
-  });
-  shares.push(ShareNats {
-    user_id: 666666,
-    worker_id: 184,
-    coin_id: 2422,
-    timestamp: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64,
-    difficulty: 2.3,
-    share_diff: 801335.0,
-    block_diff: 8900987.0,
-    block_reward: 10.0,
-    algo: 2,
-    mode: 2,
-    party_pass: "12345".to_string(),
-    stratum_id: stratum_id,
-  });
-  shares.push(ShareNats {
-    user_id: 777777,
-    worker_id: 184,
-    coin_id: 2422,
-    timestamp: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64,
-    difficulty: 2.3,
-    share_diff: 801335.0,
-    block_diff: 8900987.0,
-    block_reward: 10.0,
-    algo: 2,
-    mode: 2,
-    party_pass: "12345".to_string(),
-    stratum_id: stratum_id,
-  });
+  // shares.push(ShareNats {
+  //   user_id: 333333,
+  //   worker_id: 184,
+  //   coin_id: 2422,
+  //   timestamp: SystemTime::now()
+  //     .duration_since(UNIX_EPOCH)
+  //     .unwrap()
+  //     .as_secs() as i64,
+  //   difficulty: 2.3,
+  //   share_diff: 801335.0,
+  //   block_diff: 8900987.0,
+  //   block_reward: 10.0,
+  //   algo: 2,
+  //   mode: 0,
+  //   party_pass: "12345".to_string(),
+  //   stratum_id: stratum_id,
+  // });
+  // shares.push(ShareNats {
+  //   user_id: 444444,
+  //   worker_id: 184,
+  //   coin_id: 2422,
+  //   timestamp: SystemTime::now()
+  //     .duration_since(UNIX_EPOCH)
+  //     .unwrap()
+  //     .as_secs() as i64,
+  //   difficulty: 2.3,
+  //   share_diff: 801335.0,
+  //   block_diff: 8900987.0,
+  //   block_reward: 10.0,
+  //   algo: 2,
+  //   mode: 1,
+  //   party_pass: "12345".to_string(),
+  //   stratum_id: stratum_id,
+  // });
+  // shares.push(ShareNats {
+  //   user_id: 444444,
+  //   worker_id: 184,
+  //   coin_id: 2422,
+  //   timestamp: SystemTime::now()
+  //     .duration_since(UNIX_EPOCH)
+  //     .unwrap()
+  //     .as_secs() as i64,
+  //   difficulty: 2.3,
+  //   share_diff: 801335.0,
+  //   block_diff: 8900987.0,
+  //   block_reward: 10.0,
+  //   algo: 2,
+  //   mode: 1,
+  //   party_pass: "54321".to_string(),
+  //   stratum_id: stratum_id,
+  // });
+  // shares.push(ShareNats {
+  //   user_id: 555555,
+  //   worker_id: 184,
+  //   coin_id: 2422,
+  //   timestamp: SystemTime::now()
+  //     .duration_since(UNIX_EPOCH)
+  //     .unwrap()
+  //     .as_secs() as i64,
+  //   difficulty: 2.3,
+  //   share_diff: 801335.0,
+  //   block_diff: 8900987.0,
+  //   block_reward: 10.0,
+  //   algo: 2,
+  //   mode: 2,
+  //   party_pass: "12345".to_string(),
+  //   stratum_id: stratum_id,
+  // });
+  // shares.push(ShareNats {
+  //   user_id: 666666,
+  //   worker_id: 184,
+  //   coin_id: 2422,
+  //   timestamp: SystemTime::now()
+  //     .duration_since(UNIX_EPOCH)
+  //     .unwrap()
+  //     .as_secs() as i64,
+  //   difficulty: 2.3,
+  //   share_diff: 801335.0,
+  //   block_diff: 8900987.0,
+  //   block_reward: 10.0,
+  //   algo: 2,
+  //   mode: 2,
+  //   party_pass: "12345".to_string(),
+  //   stratum_id: stratum_id,
+  // });
+  // shares.push(ShareNats {
+  //   user_id: 777777,
+  //   worker_id: 184,
+  //   coin_id: 2422,
+  //   timestamp: SystemTime::now()
+  //     .duration_since(UNIX_EPOCH)
+  //     .unwrap()
+  //     .as_secs() as i64,
+  //   difficulty: 2.3,
+  //   share_diff: 801335.0,
+  //   block_diff: 8900987.0,
+  //   block_reward: 10.0,
+  //   algo: 2,
+  //   mode: 2,
+  //   party_pass: "12345".to_string(),
+  //   stratum_id: stratum_id,
+  // });
 
   shares
 }

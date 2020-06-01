@@ -1,4 +1,4 @@
-use super::schema::{earnings, shares, workers};
+use super::schema::{coins, earnings, shares, workers};
 use super::util::unix_timestamp;
 use serde::{Deserialize, Serialize};
 // use diesel::deserialize::Queryable;
@@ -149,6 +149,7 @@ pub struct EarningMYSQLInsertable {
   pub blockid: i32,
   pub amount: f64,
   pub status: i32,
+  pub create_time: i32,
   pub mode: String,
   pub stratum_id: i16,
   pub algo: i16,
@@ -217,3 +218,11 @@ pub struct Worker {
 //   pub worker_id: i32,
 //   pub hashrate: f64,
 // }
+
+/// Coin model
+#[derive(Debug, Queryable, Identifiable)]
+pub struct Coin {
+  pub id: i32,
+  pub symbol: String,
+  pub enable: i32,
+}

@@ -17,21 +17,34 @@ pub enum Coins {
   BLAKE2S = 12,
 }
 
+// pub struct Coin{
+//   id: i16,
+//   algo: i16 or string,
+
+// }
+// impl Coin{
+//   fn from_db(db_row: object)-> Coin{
+//     Coin{
+//       id: db_row.coin_id,
+//     }
+//   }
+// }
+
 #[derive(Debug, Copy, Clone)]
 pub enum Algos {
-  DEFAULT = 0,
-  PRIMARY = 1,
-  SECONDARY = 2,
-  CUCKOO = 3,
-  CUCKOO29 = 4,
-  EQUIHASH144 = 5,
-  BEAMHASHII = 6,
-  ARGON2D = 7,
-  RANDOMX = 8,
-  PROGPOW = 9,
-  CUCKAROO = 10,
-  CUCKATOO = 11,
-  BLAKE2S = 12,
+  DEFAULT,
+  PRIMARY,
+  SECONDARY,
+  CUCKOO,
+  CUCKOO29,
+  EQUIHASH144,
+  BEAMHASHII,
+  ARGON2D,
+  RANDOMX,
+  PROGPOW,
+  CUCKAROO,
+  CUCKATOO,
+  BLAKE2S,
 }
 impl Algos {
   pub fn from_string(value: &str) -> Algos {
@@ -45,8 +58,9 @@ impl Algos {
   pub fn from_i16(value: i16) -> Algos {
     match value {
       0 => Algos::DEFAULT,
-      1 => Algos::PRIMARY,
-      2 => Algos::SECONDARY,
+      23 => Algos::PRIMARY,
+      35 => Algos::SECONDARY,
+      28 => Algos::BLAKE2S,
       _ => Algos::DEFAULT,
     }
   }

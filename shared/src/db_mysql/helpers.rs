@@ -21,6 +21,25 @@ pub mod earnings {
 
 pub mod shares {}
 
+pub mod coins {
+  use super::super::{models::Coin, schema::coins::dsl::*};
+  use diesel::result::Error;
+  use diesel::{mysql::MysqlConnection, prelude::*};
+
+  pub fn get_coins_mysql(conn: &MysqlConnection) -> Vec<Coin> {
+    //select id, symbol, whatever other info from coins;
+    // for each row, create a new Coin struct and push to vec
+    // return vec
+    let res = coins
+      .filter(enable.eq(1))
+      // .limit(5)
+      .load::<Coin>(conn)
+      .expect("failed loading coins");
+    return res;
+  }
+}
+
+// }
 // pub mod workers {
 //   use diesel::result::Error;
 //   use diesel::{mysql::MysqlConnection, prelude::*, update};

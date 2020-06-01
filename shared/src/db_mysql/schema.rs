@@ -63,3 +63,11 @@ table! {
     hashrate -> Double,
   }
 }
+
+table! {
+  coins(id){
+    id-> Int4,
+    symbol -> Text,
+    enable -> Int4,
+  }
+}

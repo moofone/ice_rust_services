@@ -13,43 +13,46 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 const INSERTINTERVAL: u64 = 50;
 const DELETEINTERVAL: u64 = 2000;
-const WINDOW_LENGTH: u64 = 10; //2 * 60 * 60;
+const WINDOW_LENGTH: u64 = 2 * 60 * 60;
 
 #[tokio::main]
 async fn main() {
   let mut tasks = Vec::new();
   //setup nats
   let nc = establish_nats_connection();
-  let coins: Vec<i32> = vec![2422,1234];
+  // let coins: Vec<i32> = vec![2422, 1234];
   let pg_pool = establish_pg_connection();
   let shares: VecDeque<SharePGInsertable> = VecDeque::new();
   let shares = Arc::new(Mutex::new(shares));
 
   //-----------------------SHARES LISTENER--------------------------------
   {
-    for coin in coins {
-      // setup nats channel
-      let channel = format!("shares.{}", coin.to_string());
-      let sub = match nc.queue_subscribe(&channel, "shares_to_pg_worker") {
-        Ok(sub) => sub,
-        Err(err) => panic!("Queue Sub coin failed: {}"),
-      };
-      // prep queue to be used in a thread
-      let shares = shares.clone();
+    // for coin in coins {
+    // setup nats channel
+    let channel = format!("shares.>");
+    let sub = match nc.queue_subscribe(&channel, "shares_to_pg_worker") {
+      Ok(sub) => sub,
+      Err(err) => panic!("Queue Sub coin failed: {}"),
+    };
+    // prep queue to be used in a thread
+    let shares = shares.clone();
 
-      // spawn a thread for this channel to listen to shares
-      let share_task = tokio::spawn(async move {
-        for msg in sub.messages() {
-          let share = match parse_share(&msg.data) {
-            Ok(val) => val,
-            Err(err) => continue,
-          };
-          let mut shares = shares.lock().unwrap();
-          shares.push_back(share);
-        }
-      });
-      tasks.push(share_task);
-    }
+    // spawn a thread for this channel to listen to shares
+    let share_task = tokio::spawn(async move {
+      for msg in sub.messages() {
+        let share = match parse_share(&msg.data) {
+          Ok(val) => val,
+          Err(err) => {
+            println!("Error parsing share: {}", err);
+            continue;
+          }
+        };
+        let mut shares = shares.lock().unwrap();
+        shares.push_back(share);
+      }
+    });
+    tasks.push(share_task);
+    // }
   }
 
   //----------------------------INSERT SHARES-------------------------------------
@@ -68,16 +71,16 @@ async fn main() {
         // create a new vec for insertable shares
         let mut shares_vec: Vec<SharePGInsertable> = Vec::new();
         if shares.len() > 0 {
-					println!("Shares Moved from queue to vec {}", shares.len());
-				}
+          println!("Shares Moved from queue to vec {}", shares.len());
+        }
 
         // empty the queue into the vec
         while shares.len() > 0 {
           shares_vec.push(shares.pop_front().unwrap());
         }
-        if shares_vec.len() > 0 { 
-					println!("Shares to be inserted {}", shares_vec.len());
-				}
+        if shares_vec.len() > 0 {
+          println!("Shares to be inserted {}", shares_vec.len());
+        }
         let pg_pool = pg_pool.clone();
 
         tokio::spawn(async move {
@@ -129,10 +132,12 @@ async fn main() {
 fn parse_share(msg: &Vec<u8>) -> Result<SharePGInsertable, rmp_serde::decode::Error> {
   // Some JSON input data as a &str. Maybe this comes from the user.
   // Parse the string of data into serde_json::Value.
+  // println!("msg: {:?}", msg);
   let s: ShareNats = match rmp_serde::from_read_ref(&msg) {
     Ok(s) => s,
     Err(err) => return Err(err),
   };
+  // println!("Share: {:?}", &s);
   let share = sharenats_to_sharepginsertable(s);
   Ok(share)
 }

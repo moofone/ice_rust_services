@@ -6,7 +6,7 @@ use std::env;
 
 pub type NatsConnection = nats::Connection;
 
-pub fn establish_nats_connection() -> NatsConnection {
+pub fn establish_nats_connection() -> Result<NatsConnection, std::io::Error> {
   dotenv().ok();
 
   let nats_url = env::var("NATS_URL").expect("NATS_URL must be set");
@@ -19,5 +19,5 @@ pub fn establish_nats_connection() -> NatsConnection {
   );
   let con = nats::ConnectionOptions::new().with_user_pass(&nats_user, &nats_pass);
 
-  con.connect(&nats_url).expect("Nats connection failed")
+  con.connect(&nats_url)
 }
