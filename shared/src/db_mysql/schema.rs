@@ -3,6 +3,26 @@ table! {
     id -> Integer,
     coin_id -> Integer,
     height -> Integer,
+    time -> BigInt,
+    userid -> Integer,
+    workerid -> Integer,
+    confirmations -> Integer,
+    amount -> Double,
+    difficulty -> Double,
+    difficulty_user -> Double,
+    blockhash -> Text,
+    algo -> Text,
+    category -> Text,
+    stratum_id -> Text,
+    mode -> Text,
+    party_pass -> Text,
+  }
+}
+table! {
+  kdablocks (id) {
+    id -> Integer,
+    coin_id -> Integer,
+    height -> Integer,
     time -> Integer,
     userid -> Integer,
     workerid -> Integer,
@@ -13,9 +33,11 @@ table! {
     blockhash -> Text,
     algo -> Text,
     category -> Text,
-    stratum_id -> SmallInt,
+    stratum_id -> Text,
     mode -> Text,
     party_pass -> Text,
+    chainid -> SmallInt,
+    node_id -> Text,
   }
 }
 
@@ -28,10 +50,19 @@ table! {
     create_time -> Integer,
     amount -> Double,
     status -> Integer,
-    mode -> Text,
-    algo -> SmallInt,
-    stratum_id -> SmallInt,
-    party_pass -> Text,
+    mode -> Nullable<Text>,
+    algo -> Nullable<SmallInt>,
+    stratum_id -> Nullable<SmallInt>,
+    party_pass -> Nullable<Text>,
+  }
+}
+
+table! {
+  accounts (id){
+    id -> Integer,
+    coinid -> Integer,
+    balance -> Nullable<Double>,
+
   }
 }
 
@@ -69,5 +100,20 @@ table! {
     id-> Int4,
     symbol -> Text,
     enable -> Int4,
+  }
+}
+
+table! {
+  algorithms(id){
+    id -> Int4,
+    name -> Text,
+    multiplier -> Int4,
+  }
+}
+
+table! {
+  modes(id){
+    id-> Int4,
+    name -> Text,
   }
 }

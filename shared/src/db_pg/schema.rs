@@ -42,7 +42,7 @@ table! {
     time -> Int8,
     algo -> Int2,
     difficulty -> Double,
-    // share_diff -> Double,
+  share_diff -> Double,
     block_reward -> Double,
     block_diff -> Double,
     mode -> Int2,

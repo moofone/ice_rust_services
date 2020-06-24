@@ -15,8 +15,14 @@ static SHAREINTERVAL: u64 = 1;
 #[tokio::main]
 async fn main() {
   let mut tasks = Vec::new();
-  //setup nats
-  let nc = establish_nats_connection();
+  // Initilize the nats connection
+  let nc = match establish_nats_connection() {
+    Ok(n) => n,
+    Err(e) => {
+      println!("Nats did not connect: {}", e);
+      panic!("Nats did not connect: {}", e);
+    }
+  };
   println!(
     "Pub 3 blocks every: {}s, pub 10 shares {} times/s",
     BLOCKINTERVAL as f64 / 1000.0,
@@ -130,6 +136,8 @@ fn create_blocks() -> Vec<BlockNats> {
     stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
+    duration: 10, 
+    shares: 10,
   });
   blocks.push(BlockNats {
     id: 100,
@@ -151,6 +159,8 @@ fn create_blocks() -> Vec<BlockNats> {
     stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
+    duration: 10, 
+    shares: 10,
   });
   blocks.push(BlockNats {
     id: 100,
@@ -172,6 +182,8 @@ fn create_blocks() -> Vec<BlockNats> {
     stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
+    duration: 10, 
+    shares: 10,
   });
   blocks
 }
@@ -198,6 +210,7 @@ fn create_shares() -> Vec<ShareNats> {
     mode: 1,
     party_pass: "12345".to_string(),
     stratum_id: stratum_id,
+    
   });
   shares.push(ShareNats {
     user_id: 11111,

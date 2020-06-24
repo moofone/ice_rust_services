@@ -1,4 +1,6 @@
-use super::schema::{coins, earnings, shares, workers};
+use super::schema::{
+  accounts, algorithms, blocks, coins, earnings, kdablocks, modes, shares, workers,
+};
 use super::util::unix_timestamp;
 use serde::{Deserialize, Serialize};
 // use diesel::deserialize::Queryable;
@@ -90,7 +92,7 @@ impl ToString for Share {
   }
 }
 
-/// Earning model for inserts.
+/// shares model for inserts.
 #[derive(Insertable, Serialize, Deserialize)]
 #[table_name = "shares"]
 pub struct ShareMYSQLInsertable {
@@ -108,9 +110,21 @@ pub struct ShareMYSQLInsertable {
   pub timestamp: i64,
 }
 
+// Stratum grabs relevant configuration at startup
+pub struct StratumConfigurationMYSQL {
+  // enum of algos in json
+}
+
+/// accounts model for queries.
+#[derive(Queryable)]
+pub struct AccountMYSQL {
+  pub id: i32,
+  pub coinid: i32,
+  pub balance: Option<f64>,
+}
 /// Earning model for queries.
 #[derive(Queryable)]
-pub struct Earning {
+pub struct EarningMYSQL {
   pub id: i32,
   pub userid: i32,
   pub coinid: i32,
@@ -118,27 +132,29 @@ pub struct Earning {
   pub create_time: i32,
   pub amount: f64,
   pub status: i32,
-  pub mode: String,
-  pub stratum_id: i16,
-  pub algo: i16,
+  pub mode: Option<String>,
+  pub stratum_id: Option<i16>,
+  pub algo: Option<i16>,
+  pub party_pass: Option<String>,
 }
 
-impl Default for Earning {
-  fn default() -> Self {
-    Earning {
-      id: 0,
-      userid: 0,
-      coinid: 0,
-      blockid: 0,
-      create_time: 0,
-      amount: 0.0,
-      status: 0,
-      mode: "".to_string(),
-      stratum_id: 0,
-      algo: 0,
-    }
-  }
-}
+// impl Default for EarningMYSQL {
+//   fn default() -> Self {
+//     EarningMYSQL {
+//       id: 0,
+//       userid: 0,
+//       coinid: 0,
+//       blockid: 0,
+//       create_time: 0,
+//       amount: 0.0,
+//       status: 0,
+//       mode: "".to_string(),
+//       stratum_id: 0,
+//       algo: 0,
+//       party_pass: Some("".to_string()),
+//     }
+//   }
+// }
 
 /// Earning model for inserts.
 #[derive(Insertable)]
@@ -158,7 +174,7 @@ pub struct EarningMYSQLInsertable {
 
 /// Block model.
 #[derive(Queryable, Serialize, Deserialize)]
-pub struct Block {
+pub struct BlockMYSQL {
   pub id: i32,
   pub coin_id: i32,
   pub height: i32,
@@ -172,14 +188,34 @@ pub struct Block {
   pub blockhash: String,
   pub algo: String,
   pub category: String,
-  pub stratum_id: i16,
+  pub stratum_id: String,
+  pub mode: String,
+  pub party_pass: String,
+}
+/// block model for inserts.
+#[derive(Insertable)]
+#[table_name = "blocks"]
+pub struct BlockMYSQLInsertable {
+  pub coin_id: i32,
+  pub height: i32,
+  pub time: i64,
+  pub userid: i32,
+  pub workerid: i32,
+  pub confirmations: i32,
+  pub amount: f64,
+  pub difficulty: f64,
+  pub difficulty_user: f64,
+  pub blockhash: String,
+  pub algo: String,
+  pub category: String,
+  pub stratum_id: String,
   pub mode: String,
   pub party_pass: String,
 }
 
-impl Default for Block {
+impl Default for BlockMYSQL {
   fn default() -> Self {
-    Block {
+    BlockMYSQL {
       id: 0,
       coin_id: 0,
       height: 0,
@@ -193,11 +229,56 @@ impl Default for Block {
       blockhash: "".to_string(),
       algo: "".to_string(),
       category: "new".to_string(),
-      stratum_id: 0,
+      stratum_id: "".to_string(),
       mode: "norm".to_string(),
       party_pass: "".to_string(),
     }
   }
+}
+
+/// KDABlock model.
+#[derive(Queryable, Serialize, Deserialize)]
+pub struct KDABlock {
+  pub id: i32,
+  pub coin_id: i32,
+  pub height: i32,
+  pub time: i64,
+  pub userid: i32,
+  pub workerid: i32,
+  pub confirmations: i32,
+  pub amount: f64,
+  pub difficulty: f64,
+  pub difficulty_user: f64,
+  pub blockhash: String,
+  pub algo: String,
+  pub category: String,
+  pub stratum_id: String,
+  pub mode: String,
+  pub party_pass: String,
+  pub chainid: i16,
+  pub node_id: String,
+}
+/// kdablock model for inserts.
+#[derive(Insertable)]
+#[table_name = "kdablocks"]
+pub struct KDABlockMYSQLInsertable {
+  pub coin_id: i32,
+  pub height: i32,
+  pub time: i32,
+  pub userid: i32,
+  pub workerid: i32,
+  pub confirmations: i32,
+  pub amount: f64,
+  pub difficulty: f64,
+  pub difficulty_user: f64,
+  pub blockhash: String,
+  pub algo: String,
+  pub category: String,
+  pub stratum_id: String,
+  pub mode: String,
+  pub party_pass: String,
+  pub chainid: i16,
+  pub node_id: String,
 }
 
 /// HashWorker model for queries.
@@ -225,4 +306,21 @@ pub struct Coin {
   pub id: i32,
   pub symbol: String,
   pub enable: i32,
+}
+
+/// Algorithm model
+#[derive(Debug, Queryable, Identifiable)]
+#[table_name = "algorithms"]
+pub struct AlgorithmMYSQL {
+  pub id: i32,
+  pub name: String,
+  pub multiplier: i32,
+}
+
+/// Mode model
+#[derive(Debug, Queryable, Identifiable)]
+#[table_name = "modes"]
+pub struct ModeMYSQL {
+  pub id: i32,
+  pub name: String,
 }

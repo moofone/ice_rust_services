@@ -39,15 +39,15 @@ pub mod shares {
     conn: &PgConnection,
     time_greater_than: i64,
     time_less_than: i64,
-  ) -> Vec<SharePg> {
-    let res = shares
+  ) -> Result<Vec<SharePg>, diesel::result::Error> {
+    shares
       .filter(time.ge(time_greater_than))
       .filter(time.lt(time_less_than))
       .order(time.asc())
       // .limit(5)
       .load::<SharePg>(conn)
-      .expect("ffailed loading shares");
-    return res;
+    // .expect("ffailed loading shares");
+    // return res;
   }
 
   pub fn delete_shares_older_than(conn: &PgConnection, time_less_than: i64) -> Result<(), Error> {

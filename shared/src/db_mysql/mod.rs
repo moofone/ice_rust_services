@@ -24,9 +24,9 @@ fn init_mysql_pool(database_url: &str) -> Result<MysqlPool, PoolError> {
   // .map_err(|e| e.into())
 }
 
-pub fn establish_mysql_connection() -> MysqlPool {
+pub fn establish_mysql_connection() -> Result<MysqlPool, PoolError> {
   dotenv().ok();
 
   let database_url = env::var("MYSQL_DATABASE_URL").expect("MYSQL_DATABASE_URL must be set");
-  init_mysql_pool(&database_url).expect("Failed to create pool")
+  init_mysql_pool(&database_url)
 }

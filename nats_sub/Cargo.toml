@@ -10,9 +10,18 @@ name = "subscribe"
 path = "src/subscribe.rs"
 
 [dependencies]
+rmp-serde = "0.14.3"
+
+sentry = "0.18.1"
 natsio = "0.3.2"
 #rants = "0.4.3"
 futures = "0.3.1"
 tokio = { version = "0.2", features = ["full"] }
 serde_json = "1.0.51"
 shared = { path = "../shared"}
+
+criterion = "0.3.2"
+quicli = "0.4.0"
+structopt = "0.3.14"
+env_logger = "0.7.1"
+termion = "*"

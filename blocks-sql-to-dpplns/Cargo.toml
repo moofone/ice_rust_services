@@ -1,14 +1,15 @@
 [package]
-name = "dpplns"
+name = "blocks-sql-to-dpplns"
 version = "0.1.0"
-authors = ["moofone <moophone22@gmail.com>"]
+authors = ["moofone moofone <moophone22@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
 [[bin]]
-name = "dpplns"
-path = "src/dpplns.rs"
+name = "blocksSqlToDPPLNS"
+path = "src/blocksSqlToDPPLNS.rs"
 
 [dependencies]
 futures = "0.3.1"
