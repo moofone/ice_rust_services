@@ -237,8 +237,6 @@ version = "0.1.0"
 dependencies = [
  "diesel",
  "futures",
- "natsio",
- "rmp-serde",
  "sentry",
  "shared",
  "tokio",
