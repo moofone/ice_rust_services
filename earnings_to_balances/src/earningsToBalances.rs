@@ -14,7 +14,7 @@ use shared::db_mysql::{
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
-const PROCESS_INTERVAL: u64 = 5;
+const PROCESS_INTERVAL: u64 = 30;
 
 #[tokio::main]
 async fn main() {
