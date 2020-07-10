@@ -662,15 +662,15 @@ fn rebuild_decayed_map_and_trim_queue(map: &mut UserScoreMapType, shares: &mut S
     update_map_with_new_share(map, &new_share)
   }
 
-  println!(
-    "Done Decaying and Trimming, map-size: {}, queue-size: {}, took: {}ms",
-    map.len(),
-    shares.len(),
-    SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs()
-      - start,
-  );
-  println!("{:?}", map);
+  // println!(
+  //   "Done Decaying and Trimming, map-size: {}, queue-size: {}, took: {}ms",
+  //   map.len(),
+  //   shares.len(),
+  //   SystemTime::now()
+  //     .duration_since(UNIX_EPOCH)
+  //     .unwrap()
+  //     .as_secs()
+  //     - start,
+  // );
+  // println!("{:?}", map);
 }
