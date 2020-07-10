@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::fmt::{self, Formatter, Display};
+use std::fmt::{self, Display, Formatter};
 
 //toodo mo to utils
 extern crate chrono;
 extern crate chrono_humanize;
 
-use chrono::{Local, Duration};
-use chrono_humanize::HumanTime;
+// use chrono::{Duration, Local};
+// use chrono_humanize::HumanTime;
 
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShareNats {
@@ -24,9 +24,7 @@ pub struct ShareNats {
   pub block_reward: f64,
   pub party_pass: String,
   pub stratum_id: i16,
-
 }
-
 
 fn pretty_print(i: f64) -> String {
   //println!("i is {}", i);
@@ -54,33 +52,57 @@ fn pretty_print(i: f64) -> String {
   }
 }
 
-// todo move this to appropriate utils in shared
-fn timestamp_to_string(ts: i32) -> String {
-  // let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(61, 0), Utc);
-  let dt = Local::now() + Duration::seconds(3500);
-  let ht = HumanTime::from(dt);
-  let english = format!("{}", ht);
-  english
-  //assert_eq!("in a month", english);
-} 
+// // todo move this to appropriate utils in shared
+// fn timestamp_to_string(ts: i32) -> String {
+//   // let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(61, 0), Utc);
+//   let dt = Local::now() + Duration::seconds(3500);
+//   let ht = HumanTime::from(dt);
+//   let english = format!("{}", ht);
+//   english
+//   //assert_eq!("in a month", english);
+// }
 
 impl Display for ShareNats {
-    fn fmt (&self, fmt: &mut Formatter) -> fmt::Result {
-      let difficulty = pretty_print(self.difficulty as f64);
-      let share_diff = pretty_print(self.share_diff as f64);
-      let block_diff = pretty_print(self.block_diff as f64);
-      let block_reward = pretty_print(self.block_reward as f64);
+  fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+    let difficulty = pretty_print(self.difficulty as f64);
+    let share_diff = pretty_print(self.share_diff as f64);
+    let block_diff = pretty_print(self.block_diff as f64);
+    let block_reward = pretty_print(self.block_reward as f64);
 
-      if self.mode == 2 {
-        write!(fmt, "{},{},{},{},d:{},sd:{},bd:{},algo:{},mode:{},rwd:{},party:{},id:{}", 
-        self.user_id, self.worker_id, self.coin_id, self.timestamp, difficulty, share_diff, self.block_diff, 
-        self.algo, self.party_pass, block_reward, self.party_pass, self.stratum_id)
-      } else {
-        write!(fmt, "{},{},{},{},diff:{},sdiff:{},bdiff:{},algo:{},reward:{},id:{}", 
-        self.user_id, self.worker_id, self.coin_id, self.timestamp, difficulty, share_diff, block_diff, 
-        self.algo, block_reward, self.stratum_id)
-      }
+    if self.mode == 2 {
+      write!(
+        fmt,
+        "{},{},{},{},d:{},sd:{},bd:{},algo:{},mode:{},rwd:{},party:{},id:{}",
+        self.user_id,
+        self.worker_id,
+        self.coin_id,
+        self.timestamp,
+        difficulty,
+        share_diff,
+        self.block_diff,
+        self.algo,
+        self.party_pass,
+        block_reward,
+        self.party_pass,
+        self.stratum_id
+      )
+    } else {
+      write!(
+        fmt,
+        "{},{},{},{},diff:{},sdiff:{},bdiff:{},algo:{},reward:{},id:{}",
+        self.user_id,
+        self.worker_id,
+        self.coin_id,
+        self.timestamp,
+        difficulty,
+        share_diff,
+        block_diff,
+        self.algo,
+        block_reward,
+        self.stratum_id
+      )
     }
+  }
 }
 
 /// DPPLNS Block model.

@@ -2,10 +2,10 @@ use sentry::{capture_message, integrations::failure::capture_error, Level};
 
 extern crate termion;
 
-use termion::{color, clear, style};
+use termion::{clear, color, style};
 
 use rmp_serde::*;
-use shared::nats::{establish_nats_connection, models::ShareNats, models::KDABlockNats};
+use shared::nats::{establish_nats_connection, models::KDABlockNats, models::ShareNats};
 
 fn parse_share(msg: &Vec<u8>) -> Result<ShareNats, rmp_serde::decode::Error> {
   // Some JSON input data as a &str. Maybe this comes from the user.
@@ -44,12 +44,12 @@ async fn main() {
     }
   };
 
-  let sub = nc.subscribe(">").unwrap();
+  let sub = nc.subscribe("kdablocks").unwrap();
   //let kdablocks_sub = nc.subscribe("kdablocks").unwrap();
 
   for msg in sub.messages() {
     let subject = &msg.subject;
-    if subject.starts_with("shares.1234") {
+    if subject.starts_with("shares.2423") {
       let share = match parse_share(&msg.data) {
         Ok(val) => val,
         Err(err) => {
@@ -57,8 +57,14 @@ async fn main() {
           continue;
         }
       };
-      println!("{}Share:{}{}", color::Fg(color::Rgb(255,0,255)), color::Fg(color::Reset), share);
-    } else if subject.starts_with("kdablock") {
+      println!(
+        "{}Share:{}{}",
+        color::Fg(color::Rgb(255, 0, 255)),
+        color::Fg(color::Reset),
+        share
+      );
+    } else {
+      //if subject.starts_with("kdablocks") {
       let kdablock = match parse_kdablock(&msg.data) {
         Ok(val) => val,
         Err(err) => {
@@ -66,7 +72,12 @@ async fn main() {
           continue;
         }
       };
-      println!("{}{:?}{}", color::Fg(color::Rgb(255,50,255)), kdablock, color::Fg(color::Reset));
+      println!(
+        "{}{:?}{}",
+        color::Fg(color::Rgb(255, 50, 255)),
+        kdablock,
+        color::Fg(color::Reset)
+      );
     }
 
     /*

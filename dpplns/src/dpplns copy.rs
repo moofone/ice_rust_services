@@ -23,7 +23,7 @@ final goal (ShareMin => min usable data for a share that will go into the queue)
 
 */
 
-// const DEBUG_MODE: bool = false;
+const DEBUG_MODE: bool = false;
 
 extern crate shared;
 use diesel::prelude::*;
@@ -41,7 +41,7 @@ use shared::db_pg::{
 };
 
 // use shared::enums::*;
-// use sentry::{capture_message, integrations::failure::capture_error, Level};
+use sentry::{capture_message, integrations::failure::capture_error, Level};
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::sync::{Arc, Mutex};
@@ -68,22 +68,6 @@ struct ShareMinified {
   mode: i16,
   party_pass: String,
   // decay_counter: i16,
-}
-impl ShareMinified {
-  fn mode_to_string(self) -> String {
-    match self.mode {
-      0 => "normal".to_string(),
-      1 => "solo".to_string(),
-      2 => "party".to_string(),
-      _ => "invalid".to_string(),
-    }
-  }
-  fn algo_to_string(self) -> String {
-    match self.algo {
-      0 => "blake2s".to_string(),
-      _ => "invalid".to_string(),
-    }
-  }
 }
 // convert incoming shareNats into shareminified
 impl From<ShareNats> for ShareMinified {
@@ -134,31 +118,60 @@ impl From<SharePg> for ShareMinified {
   }
 }
 
+// generic earning - to be converted into PG and MYSQL earnings
+#[derive(Debug, PartialEq)]
+struct Earning {
+  user_id: i32,
+  coin_id: i32,
+  block_id: i32,
+  create_time: i64,
+  status: i32,
+  amount: f64,
+  mode: i32,
+  algo: i16,
+  stratum_id: i16,
+  party_pass: String,
+}
+impl Earning {
+  // fn to_EarningMYSQLInsertable() -> EarningMYSQLInsertable {}
+  // fn to_EarningPGINsertable() -> EarningPGInsertable {}
+}
+
 // hashmap to hold userid's with the current dpplns scores
 type UserScoreMapType = HashMap<String, HashMap<i32, f64>>;
 // queue to hold shares (queue length of dpplns window)
 type ShareQueueType = VecDeque<ShareMinified>;
 // hashmap to hold earnings for each block
 type EarningMapType = HashMap<i32, f64>;
-
+/*
+let algorithm = match algorithms.get(&b.algo) {
+  Some(a) => b.id,
+  None => panic!("why does this algo not exist"),
+};
+let mode = match modes.get(&b.mode) {
+  Some(m) => m.id,
+  None => panic!("why does this mode not exist"),
+};
+*/
 #[tokio::main]
 async fn main() {
-  // let _guard =
-  //   sentry::init("https://689607b053ac4fbb81ee82a08a8aa18a@sentry.watlab.icemining.ca/9");
+  let _guard =
+    sentry::init("https://689607b053ac4fbb81ee82a08a8aa18a@sentry.watlab.icemining.ca/9");
 
   // create base structs to be used across threads
   let shares_queue = Arc::new(Mutex::new(ShareQueueType::new()));
   let user_scores_map = Arc::new(Mutex::new(UserScoreMapType::new()));
+  // lock the shares and scores, load last window from database
+  {
+    let mut sha = shares_queue.lock().unwrap();
+    let mut sco = user_scores_map.lock().unwrap();
+    load_shares_from_db(&mut *sha, &mut *sco);
+    rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha)
+  }
 
-  // {
-  //   // lock the shares and scores, load last window from database
-  //   let mut sha = shares_queue.lock().unwrap();
-  //   let mut sco = user_scores_map.lock().unwrap();
-  //   load_shares_from_db(&mut *sha, &mut *sco);
-  //   rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha)
-  // }
+  capture_message("DPPLNS loaded shares and is now live", Level::Info);
 
-  // capture_message("DPPLNS loaded shares and is now live", Level::Info);
+  // println!("{:?}", user_scores_map);
 
   // Initilize the nats connection
   let nc = match establish_nats_connection() {
@@ -184,7 +197,7 @@ async fn main() {
     let user_scores = user_scores_map.clone();
     let share_task = tokio::spawn(async move {
       for msg in sub.messages() {
-        match parse_share(&msg.data) {
+        let share = match parse_share(&msg.data) {
           Ok(share) => {
             let mut sha = shares.lock().unwrap();
             let mut sco = user_scores.lock().unwrap();
@@ -192,7 +205,7 @@ async fn main() {
           }
           Err(err) => {
             println!("share parse failed: {}", err);
-            // capture_message(&format!("Share parse failed: {}", err), Level::Error);
+            capture_message(&format!("Share parse failed: {}", err), Level::Error);
             ()
           }
         };
@@ -204,7 +217,7 @@ async fn main() {
   //-----------------------BLOCKS LISTENER----------------------------
   {
     // subscribe to the nats blocks channel
-    let block_sub = match nc.queue_subscribe("dpplns", "dpplns_worker") {
+    let block_sub = match nc.queue_subscribe("blocks", "dpplns_worker") {
       Ok(b) => b,
       Err(e) => panic!("Nats sub to blocks failed: {}", e),
     };
@@ -234,8 +247,42 @@ async fn main() {
             let sco = user_scores.lock().unwrap();
             match handle_block(&msg, &sco, mysql_pool) {
               Ok(_) => (),
-              Err(e) => println!("block failed. e: {}", e),
+              Err(err) => println!("block failed"),
             }
+            // match parse_block(&msg.data) {
+            //   Ok(block) => {
+            //     // block parsed fine, lock the scores map
+            //     let sco = user_scores.lock().unwrap();
+
+            //     // generate earnings_dict, if none returned, encounted a weird issue
+            //     match dpplns(&block, &*sco) {
+            //       Some(earnings_dict) => {
+            //         // drop the scores map to be used elsewhere
+            //         drop(sco);
+
+            //         // grab a mysql pool connection and insert earnings
+            //         match mysql_pool.get() {
+            //           Ok(mut conn) => insert_earnings(&block, earnings_dict, &mut conn),
+            //           Err(err) => {
+            //             capture_message(&format!("Mysql failed to get a pool connection to insert earnings for blockid: {},: {}", &block.id,err), Level::Error);
+            //             ()
+            //           }
+            //         }
+            //       }
+            //       None => {
+            //         capture_message(
+            //           &format!("Block was not in dict: {}", &block.id),
+            //           Level::Error,
+            //         );
+            //         ()
+            //       }
+            //     }
+            //   }
+            //   Err(err) => {
+            //     capture_message(&format!("Block parse failed: {}", err), Level::Error);
+            //     ()
+            //   }
+            // };
           });
         }
       }
@@ -276,8 +323,8 @@ fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMap
   // let log = "".to_string();
 
   // setup block fees and log
-  match block.mode.as_str() {
-    "normal" => {
+  match block.mode {
+    0 => {
       println!(
         "Normal Block: {} Reward: {}, Fee: {}%",
         block.coin_id,
@@ -285,7 +332,7 @@ fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMap
         f * 100.0
       );
     }
-    "party" => {
+    1 => {
       let share_payout = (1.0 - PARTY_FEE as f64) * block.amount;
       let party_pass = &block.party_pass;
       f = PARTY_FEE;
@@ -296,7 +343,7 @@ fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMap
         f * 100.0
       );
     }
-    "solo" => {
+    2 => {
       let share_payout = (1.0 - SOLO_FEE as f64) * block.amount;
       println!(
         "YOLO SOLO!! B: {} Payout: {}, Fee: {}%",
@@ -313,7 +360,7 @@ fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMap
   }
 
   // copy proper dict over
-  let key: String = dict_key_gen(&block.mode, block.coin_id, &block.algo, &block.party_pass);
+  let key: String = dict_key_gen(block.mode, block.coin_id, block.algo, &block.party_pass);
   let key_exists = dict.contains_key(&key);
 
   if key_exists == false {
@@ -333,11 +380,11 @@ fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMap
 
   let prop_factor = tgt_block_payout / total_earned;
 
-  // let mut sum = 0.0;
+  let mut sum = 0.0;
   for (_, val) in earnings_dict.iter_mut() {
     let scaled_amount = *val * prop_factor;
     *val = scaled_amount;
-    // sum += scaled_amount;
+    sum += scaled_amount;
   }
 
   // println!(
@@ -373,38 +420,48 @@ fn insert_earnings(
       create_time: create_time as i32,
       status: 0,
       amount: *val,
-      mode: block.mode.clone(),
-      stratum_id: 0, //block.stratum_id,
-      algo: 0,       //block.algo,
+      mode: {
+        match block.mode {
+          0 => "normal".to_string(),
+          1 => "party".to_string(),
+          2 => "solo".to_string(),
+          _ => {
+            println!("WHY DIDNT THIS BLOCK HAVE A MODE????");
+            "normal".to_string()
+          }
+        }
+      },
+      stratum_id: block.stratum_id,
+      algo: block.algo,
       party_pass: block.party_pass.to_string(),
     });
   }
 
-  // if DEBUG_MODE == false {
-  let e = insert_earnings_mysql(pool_conn, earnings);
-  match e {
-    Ok(_) => (), //println!("Earnings Inserted"),
-    Err(err) => {
-      // capture_message(
-      //   &format!(
-      //     "Failed to insert earnings mysql for blockid: {},: {}",
-      //     &block.id, err
-      //   ),
-      //   Level::Error,
-      // );
-      return Err(err);
+  if DEBUG_MODE == false {
+    let e = insert_earnings_mysql(pool_conn, earnings);
+    match e {
+      Ok(_) => (), //println!("Earnings Inserted"),
+      Err(err) => {
+        capture_message(
+          &format!(
+            "Failed to insert earnings mysql for blockid: {},: {}",
+            &block.id, err
+          ),
+          Level::Error,
+        );
+        return Err(err);
+      }
     }
   }
-  // }
   Ok(())
 }
 
 // generates a key from the share to be used in the user scores hashmap
-fn dict_key_gen(mode: &String, coin_id: i32, algo: &String, party_pass: &String) -> String {
+fn dict_key_gen(mode: i16, coin_id: i16, algo: i16, party_pass: &String) -> String {
   let key;
-  match mode.as_str() {
-    "normal" => key = format!("N:{}-{}", coin_id.to_string(), algo.to_string()),
-    "party" => {
+  match mode {
+    0 => key = format!("N:{}-{}", coin_id.to_string(), algo.to_string()),
+    1 => {
       key = format!(
         "P:{}-{}-{}",
         coin_id.to_string(),
@@ -464,12 +521,7 @@ fn handle_block(
   // grab a mysql pool connection and insert earnings
   let conn = match mysql_pool.get() {
     Ok(c) => c,
-    Err(e) => {
-      return Err(format!(
-        "Mysql connection failed on block: {}. e: {}",
-        block.id, e
-      ))?
-    }
+    Err(e) => return Err(format!("Mysql connection failed on block: {}", block.id))?,
   };
   insert_earnings(&block, earnings_dict, &conn)?;
   Ok(())
@@ -548,7 +600,7 @@ fn calc_score(
   block_reward: f64,
 ) -> f64 {
   // solo shares dont need to keep score
-  if mode == 1 {
+  if mode == 2 {
     return 1.0;
   }
 
@@ -564,7 +616,7 @@ fn calc_score(
     _ => f = NORMAL_FEE,
   }
 
-  if mode == 2 {
+  if mode == 1 {
     f = PARTY_FEE
   }
 
@@ -588,7 +640,7 @@ fn calc_score(
 
   // return the share_payout
   //10.0
-  // println!("share user_id: {}, payout: {}", user_id, share_payout);
+  println!("share user_id: {}, payout: {}", user_id, share_payout);
   share_payout
 }
 
@@ -599,13 +651,11 @@ fn add_share_to_queue(shares_queue: &mut ShareQueueType, share: ShareMinified) {
 
 // add a share to the map but increaking the user's value
 fn update_map_with_new_share(map: &mut UserScoreMapType, share_obj: &ShareMinified) {
-  let mode = share_obj.clone().mode_to_string();
-  let algo = share_obj.clone().algo_to_string();
   // generate a key for the dictionary based on the share
   let key: String = dict_key_gen(
-    &mode,
-    share_obj.coin_id as i32,
-    &algo,
+    share_obj.mode,
+    share_obj.coin_id,
+    share_obj.algo,
     &share_obj.party_pass,
   );
 
@@ -674,3 +724,131 @@ fn rebuild_decayed_map_and_trim_queue(map: &mut UserScoreMapType, shares: &mut S
   );
   println!("{:?}", map);
 }
+// //--------------------------TRIM TIMER----------------------------
+// {
+//   let shares = shares_queue.clone();
+//   let user_scores = user_scores_map.clone();
+//   let trim_task = tokio::spawn(async move {
+//     let mut interval = time::interval(Duration::from_millis(1000));
+//     loop {
+//       interval.tick().await;
+
+//       let mut sha = shares.lock().unwrap();
+//       let mut sco = user_scores.lock().unwrap();
+//       rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha)
+//       // trim_shares_from_queue_and_map(&mut *sco, &mut *sha);
+//     }
+//   });
+//   tasks.push(trim_task);
+// }
+// // remove shares from the queue and update the value in the map to reflect
+// // looks back to the beginning of the window length
+// fn trim_shares_from_queue_and_map(mut map: &mut UserScoreMapType, shares: &mut ShareQueueType) {
+//   let now = SystemTime::now();
+//   let start = now.duration_since(UNIX_EPOCH).unwrap().as_secs();
+//   let time_window_start = now.duration_since(UNIX_EPOCH).unwrap().as_secs() - WINDOW_LENGTH;
+//   // if shares.len() == 0 {
+//   //   return;
+//   // }
+//   let mut trimmed = 0;
+//   // let mut time = shares.front().unwrap().time;
+//   // let mut share: ShareMinified;
+
+//   // while time < time_window_start as i64 && shares.len() > 0 {
+//   //   share = shares.pop_front().unwrap();
+//   //   time = share.time;
+//   //   // update_map_by_removing_share(&mut map, share);
+//   //   // trimmed += 1;
+//   // }
+
+//   //decay_queue_and_map(&mut map, &shares);
+
+//   // println!(
+//   //   "Done Trimming, map-size: {}, queue-size: {}, took: {}ms, trimmed: {}",
+//   //   map.len(),
+//   //   shares.len(),
+//   //   SystemTime::now()
+//   //     .duration_since(UNIX_EPOCH)
+//   //     .unwrap()
+//   //     .as_secs()
+//   //     - start,
+//   //   trimmed
+//   // );
+//   // println!("{:?}", map);
+// }
+
+// // removes a share from the map by updating its value
+// fn update_map_by_removing_share(map: &mut UserScoreMapType, share_obj: ShareMinified) {
+//   // generate a key for the dictionary based on the share
+//   let key: String = dict_key_gen(
+//     share_obj.mode,
+//     share_obj.coin_id,
+//     share_obj.algo,
+//     &share_obj.party_pass,
+//   );
+
+//   // set the user_scores map to the proper key
+//   if !map.contains_key(&key) {
+//     panic!("WTF HOW DID WE GET HERE GREG????");
+//   }
+//   let user_scores = map.get_mut(&key).unwrap();
+
+//   // update user score
+//   if let Some(score) = user_scores.get_mut(&share_obj.user_id) {
+//     *score -= share_obj.share_payout;
+//     // println!("{}", 1e-9);
+//     // remove user if down to 0
+//     if *score <= 1e-9 {
+//       user_scores.remove(&share_obj.user_id);
+//     }
+//   }
+
+//   // drop the entire key if its empty
+//   if user_scores.len() == 0 {
+//     map.remove(&key);
+//   }
+// }
+// // removes a share from the map by updating its value
+// fn update_map_by_decaying_share(
+//   map: &mut UserScoreMapType,
+//   share_obj: &mut ShareMinified,
+//   time_current: i64,
+// ) {
+//   // generate a key for the dictionary based on the share
+//   let key: String = dict_key_gen(
+//     share_obj.mode,
+//     share_obj.coin_id,
+//     share_obj.algo,
+//     &share_obj.party_pass,
+//   );
+
+//   // set the user_scores map to the proper key
+//   if !map.contains_key(&key) {
+//     // key depleted already
+//     return;
+//     // panic!("WTF HOW DID WE GET HERE GREG????");
+//   }
+//   let user_scores = map.get_mut(&key).unwrap();
+//   // println!(
+//   //   "subtract value  - {}",
+//   //   share_obj.share_payout * DECAY_FACTOR
+//   // );
+
+//   let decay_factor = calc_decay_factor(share_obj.decay_counter);
+//   // update user score
+//   if let Some(score) = user_scores.get_mut(&share_obj.user_id) {
+//     *score -= share_obj.share_payout * decay_factor;
+//     // println!("{}", 1e-9);
+//     // remove user if down to 0
+//     if *score <= 1e-9 {
+//       user_scores.remove(&share_obj.user_id);
+//     }
+//   }
+
+//   share_obj.decay_counter += 1;
+
+//   // drop the entire key if its empty
+//   if user_scores.len() == 0 {
+//     map.remove(&key);
+//   }
+// }

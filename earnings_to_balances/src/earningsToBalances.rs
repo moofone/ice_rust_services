@@ -128,6 +128,8 @@ async fn main() {
           // #[cfg(debug_assertions)]
           // println!("Account balance updated: {}", account.id);
         }
+
+        println!("Accounts updated");
       }
     });
     tasks.push(process_task);

@@ -1,23 +1,23 @@
 extern crate shared;
 
-use sentry::{capture_message, integrations::failure::capture_error, Level};
+// use sentry::{capture_message, integrations::failure::capture_error, Level};
 use shared::db_mysql::{
   establish_mysql_connection, helpers::kdablocks::insert_kdablocks_mysql,
   models::KDABlockMYSQLInsertable, MysqlPool,
 };
 use shared::nats::establish_nats_connection;
 use shared::nats::models::KDABlockNats;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::time;
+// use std::time::{Duration, SystemTime, UNIX_EPOCH};
+// use tokio::time;
 
-const INSERTINTERVAL: u64 = 50;
-const DELETEINTERVAL: u64 = 2000;
-const WINDOW_LENGTH: u64 = 2 * 60 * 60;
+// const INSERTINTERVAL: u64 = 50;
+// const DELETEINTERVAL: u64 = 2000;
+// const WINDOW_LENGTH: u64 = 2 * 60 * 60;
 
 #[tokio::main]
 async fn main() {
-  let _guard =
-    sentry::init("https://f8ee06fb619843b1ae923d9111d855a9@sentry.watlab.icemining.ca/10");
+  // let _guard =
+  //   sentry::init("https://f8ee06fb619843b1ae923d9111d855a9@sentry.watlab.icemining.ca/10");
 
   let mut tasks = Vec::new();
   // Initilize the nats connection
@@ -25,114 +25,93 @@ async fn main() {
     Ok(n) => n,
     Err(e) => {
       println!("Nats did not connect: {}", e);
+      // crash and sentry BIG
       panic!("Nats did not connect: {}", e);
     }
   };
-  // let coins: Vec<i32> = vec![2422, 1234];
   //setup msqyl
   let mysql_pool = match establish_mysql_connection() {
     Ok(p) => p,
-    Err(e) => panic!("MYSQL FAILED: {}", e),
+    Err(e) => {
+      // crash and sentry BIG
+      panic!("MYSQL FAILED: {}", e)
+    }
   };
 
-  capture_message("KDA Blocks listening", Level::Info);
+  // capture_message("KDA Blocks listening", Level::Info);
 
   //-----------------------KDA BLOCKS LISTENER--------------------------------
   {
-    // for coin in coins {
     // setup nats channel
-    let channel = format!("kdablocks");
-    let sub = match nc.queue_subscribe(&channel, "kdablock_worker") {
+    let subject = format!("kdablocks");
+    // let sub = match nc.queue_subscribe(&channel, "kdablock_workes") {
+    let sub = match nc.subscribe(&subject) {
       Ok(sub) => sub,
-      Err(err) => panic!("Queue kdablock coin failed: {}"),
+      Err(e) => panic!("Queue kdablock coin failed: {}", e),
     };
 
+    println!("spawning block task");
     // spawn a thread for this channel to listen to shares
-    let block_task = tokio::spawn(async move {
+    let blocks_task = tokio::task::spawn(async move {
       // grab a copy fo the pool to passed into the thread
       let mysql_pool = mysql_pool.clone();
+      println!("about to listen loop sub");
 
       for msg in sub.messages() {
-        println!("kdablock");
+        println!("kdablock from nats");
 
-        // parse the block
-        let kdablock = match parse_kdablock(&msg.data) {
-          Ok(val) => val,
-          Err(err) => {
-            println!("Error parsing kdablock: {}", err);
-            continue;
-          }
-        };
+        // // grab a copy to be passed into the thread
+        let mysql_pool = mysql_pool.clone();
+        println!("about to spawn thread");
 
-        // grab a mysql pool connection
-        let conn = match mysql_pool.get() {
-          Ok(c) => c,
-          Err(e) => {
-            return Err(format!(
-              "Mysql connection failed on block: {}",
-              kdablock.height
-            ))
-            .unwrap();
-          }
-        };
+        // spawn a thread for the block
+        tokio::task::spawn_blocking(move || {
+          println!("processing block");
+          // parse the block
+          let kdablock = match parse_kdablock(&msg.data) {
+            Ok(val) => val,
+            Err(e) => {
+              // massive sentry error
+              println!("Error parsing kdablock: {}", e);
+              // return from tokio async block and move on
+              return;
+            }
+          };
 
-        // create a queue of blocks ( incase we want to scale or bulk insert)
-        let mut kdablocks: Vec<KDABlockMYSQLInsertable> = Vec::new();
-        kdablocks.push(kdablock);
-        insert_kdablocks_mysql(&conn, kdablocks);
-        println!("block inserted");
-        // let mut shares = shares.lock().unwrap();
-        // shares.push_back(share);
+          // grab a mysql pool connection
+          let conn = match mysql_pool.get() {
+            Ok(conn) => conn,
+            Err(e) => {
+              // crash and sentry BIG ISSUE
+              println!("Error mysql conn. e: {}", e);
+              panic!(
+                "error getting mysql connection. block: {}, e: {}",
+                &kdablock.height, e
+              );
+            }
+          };
+
+          // create a queue of blocks ( incase we want to scale or bulk insert)
+          let mut kdablocks: Vec<KDABlockMYSQLInsertable> = Vec::new();
+          let height = kdablock.height;
+          kdablocks.push(kdablock);
+          match insert_kdablocks_mysql(&conn, kdablocks) {
+            Ok(_) => (),
+            Err(e) => {
+              // yell to sentry that we failed to insert a block
+              println!("block not inserted. e: {}", e);
+              return Err(format!("Insert failed: {}, {}", height, e)).unwrap();
+            }
+          };
+          println!("block inserted\n");
+        });
       }
+      println!("done listening to messages");
     });
-    tasks.push(block_task);
+    tasks.push(blocks_task);
     // }
   }
-
-  // //----------------------------INSERT SHARES-------------------------------------
-  // {
-  //   let pg_pool = pg_pool.clone();
-  //   let shares = shares.clone();
-
-  //   let insert_task = tokio::spawn(async move {
-  //     let mut interval = time::interval(Duration::from_millis(INSERTINTERVAL));
-  //     loop {
-  //       interval.tick().await;
-
-  //       // lock the shares queue
-  //       let mut shares = shares.lock().unwrap();
-
-  //       // create a new vec for insertable shares
-  //       let mut shares_vec: Vec<SharePGInsertable> = Vec::new();
-  //       if shares.len() > 0 {
-  //         println!("Shares Moved from queue to vec {}", shares.len());
-  //       }
-
-  //       // empty the queue into the vec
-  //       while shares.len() > 0 {
-  //         shares_vec.push(shares.pop_front().unwrap());
-  //       }
-  //       if shares_vec.len() > 0 {
-  //         println!("Shares to be inserted {}", shares_vec.len());
-  //       }
-  //       let pg_pool = pg_pool.clone();
-
-  //       tokio::spawn(async move {
-  //         let conn = match pg_pool.get() {
-  //           Ok(conn) => conn,
-  //           Err(err) => panic!("error getting mysql connection: {}", err),
-  //         };
-
-  //         if shares_vec.len() > 0 {
-  //           // insert the array
-  //           insert_shares_pg(&conn, shares_vec).expect("Share insert failed");
-  //         }
-  //       });
-  //     }
-  //   });
-  //   tasks.push(insert_task);
-  // }
-
+  // loop {}
   for handle in tasks {
     handle.await.unwrap();
   }

@@ -1,26 +1,26 @@
 extern crate shared;
 
-use sentry::{capture_message, integrations::failure::capture_error, Level};
+// use sentry::{capture_message, integrations::failure::capture_error, Level};
 use shared::db_mysql::{
   establish_mysql_connection,
-  helpers::algorithms::get_algorithms_mysql,
+  // helpers::algorithms::get_algorithms_mysql,
   helpers::blocks::{get_blocks_unprocessed_mysql, update_block_to_unconfirmed_mysql},
-  helpers::modes::get_modes_mysql,
-  models::{AlgorithmMYSQL, BlockMYSQL, ModeMYSQL},
-  MysqlPool,
+  // helpers::modes::get_modes_mysql,
+  models::BlockMYSQL,
+  // MysqlPool,
 };
 use shared::nats::establish_nats_connection;
 use shared::nats::models::DPPLNSBlockNats;
-use shared::nats::models::KDABlockNats;
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
+// use shared::nats::models::KDABlockNats;
+// use std::collections::HashMap;
+// use std::time::{SystemTime, UNIX_EPOCH};
 const RUN_INTERVAL: u64 = 10;
 use tokio::time::{interval_at, Duration, Instant};
 
 #[tokio::main]
 async fn main() {
-  let _guard =
-    sentry::init("https://f8ee06fb619843b1ae923d9111d855a9@sentry.watlab.icemining.ca/10");
+  // let _guard =
+  //   sentry::init("https://f8ee06fb619843b1ae923d9111d855a9@sentry.watlab.icemining.ca/10");
 
   let mut tasks = Vec::new();
   // Initilize the nats connection
@@ -38,7 +38,7 @@ async fn main() {
     Err(e) => panic!("MYSQL FAILED: {}", e),
   };
 
-  capture_message("Moving blocks from sql to dpplns nats", Level::Info);
+  // capture_message("Moving blocks from sql to dpplns nats", Level::Info);
 
   // ------------------------SQL BLOCKS SELECT INTERVAL---------------------------
   {
@@ -50,37 +50,45 @@ async fn main() {
 
       loop {
         interval.tick().await;
+        println!("About to process blocks");
         // grab a copy fo the pool to passed into the thread
         let mysql_pool = mysql_pool.clone();
 
         // grab a mysql pool connection
         let conn = match mysql_pool.get() {
-          Ok(c) => c,
+          Ok(conn) => conn,
           Err(e) => {
-            return Err(format!("Mysql connection failed")).unwrap();
+            // crash and sentry BIG ISSUE
+            println!("Error mysql conn. e: {}", e);
+            panic!("error getting mysql connection. e: {}", e);
           }
         };
         // get new blocks within the hour
         let blocks: Vec<BlockMYSQL> = match get_blocks_unprocessed_mysql(&conn) {
           Ok(blocks) => blocks,
           Err(e) => {
-            panic!("no new blocks");
+            println!("Error getting blocks. e: {}", e);
+            panic!("error... e: {}", e);
           }
         };
 
         for block in blocks {
           // set the block in mysql to unconfirmed, with 0 confirmations
-          update_block_to_unconfirmed_mysql(&conn, &block);
+          match update_block_to_unconfirmed_mysql(&conn, &block) {
+            Ok(_) => (),
+            Err(e) => println!("Update block failed. block: {}, e: {}", &block.id, e),
+          }
 
           // pass block to dpplns
           let b = blockmysql_to_dpplnsblocknats(block);
           let msgpack_data = rmp_serde::to_vec(&b).unwrap();
           println!("PUBLISHING");
           match nc.publish("dpplns", msgpack_data) {
-            Ok(val) => (),
+            Ok(_) => (),
             Err(err) => println!("err: {}", err),
           }
         }
+        println!("Finished processing\n");
       }
     });
     tasks.push(block_select_task);

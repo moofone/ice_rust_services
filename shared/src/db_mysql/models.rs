@@ -1,5 +1,5 @@
 use super::schema::{
-  accounts, algorithms, blocks, coins, earnings, kdablocks, modes, shares, workers,
+  algorithms, blocks, coins, earnings, kdablocks, modes, shares, users, workers,
 };
 use super::util::unix_timestamp;
 use serde::{Deserialize, Serialize};
@@ -191,6 +191,7 @@ pub struct BlockMYSQL {
   pub stratum_id: String,
   pub mode: String,
   pub party_pass: String,
+  pub state: i32,
 }
 /// block model for inserts.
 #[derive(Insertable)]
@@ -211,6 +212,7 @@ pub struct BlockMYSQLInsertable {
   pub stratum_id: String,
   pub mode: String,
   pub party_pass: String,
+  pub state: i32,
 }
 
 impl Default for BlockMYSQL {
@@ -232,6 +234,7 @@ impl Default for BlockMYSQL {
       stratum_id: "".to_string(),
       mode: "norm".to_string(),
       party_pass: "".to_string(),
+      state: 0,
     }
   }
 }
@@ -323,4 +326,13 @@ pub struct AlgorithmMYSQL {
 pub struct ModeMYSQL {
   pub id: i32,
   pub name: String,
+}
+
+#[derive(Queryable, AsChangeset, Serialize, Deserialize)]
+#[table_name = "users"]
+pub struct UserMYSQL {
+  pub id: i32,
+  pub display_name: String,
+  pub email: String,
+  pub password: String,
 }

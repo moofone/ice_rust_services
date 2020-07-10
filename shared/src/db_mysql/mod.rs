@@ -3,6 +3,8 @@ pub mod models;
 pub mod schema;
 pub mod util;
 
+// use rocket_contrib::json::Json;
+
 use diesel::{
   mysql::MysqlConnection,
   // prelude::*,
@@ -28,5 +30,6 @@ pub fn establish_mysql_connection() -> Result<MysqlPool, PoolError> {
   dotenv().ok();
 
   let database_url = env::var("MYSQL_DATABASE_URL").expect("MYSQL_DATABASE_URL must be set");
+  println!("MYSQL --- url: {}", &database_url);
   init_mysql_pool(&database_url)
 }

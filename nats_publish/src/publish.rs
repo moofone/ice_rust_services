@@ -3,9 +3,9 @@ extern crate rand;
 use rmp_serde;
 extern crate shared;
 use dotenv::dotenv;
-use rand::Rng;
+// use rand::Rng;
 use shared::nats::establish_nats_connection;
-use shared::nats::models::{BlockNats, ShareNats};
+use shared::nats::models::{BlockNats, KDABlockNats, ShareNats};
 use std::env;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
@@ -38,21 +38,52 @@ async fn main() {
       loop {
         interval.tick().await;
 
+        // tokio::spawn(async move {
+        //   println!("hi");
+        //   return;
+        //   println!("bye")
+        // });
         let mut rng = rand::thread_rng();
 
         let blocks = create_blocks();
-        let channel = format!("blocks");
+        let channel = format!("kdablocks");
 
-        for mut block in blocks {
-          block.id = rng.gen::<i32>().abs();
-
-          let msgpack_data = rmp_serde::to_vec(&block).unwrap();
-
-          match nc.publish(&channel, msgpack_data) {
-            Ok(val) => (),
-            Err(err) => println!("err: {}", err),
-          }
+        let kdablock = KDABlockNats {
+          coin_id: 69,
+          height: 69,
+          time: 69,
+          userid: 69,
+          workerid: 69,
+          confirmations: 69,
+          amount: 1.0,
+          difficulty: 1.0,
+          difficulty_user: 1.0,
+          blockhash: "poopy".to_string(),
+          algo: "poopy".to_string(),
+          category: "poopy".to_string(),
+          stratum_id: "poopy".to_string(),
+          chainid: 69,
+          node_id: "poopy".to_string(),
+          mode: "poopy".to_string(),
+          party_pass: "poopy".to_string(),
+          duration: 69,
+          shares: 69,
+        };
+        let msgpack_data = rmp_serde::to_vec(&kdablock).unwrap();
+        match nc.publish(&channel, msgpack_data) {
+          Ok(val) => println!("pubbed"),
+          Err(err) => println!("err: {}", err),
         }
+        // for mut block in blocks {
+        //   // block.id = rng.gen::<i32>().abs();
+
+        //   let msgpack_data = rmp_serde::to_vec(&block).unwrap();
+
+        //   match nc.publish(&channel, msgpack_data) {
+        //     Ok(val) => (),
+        //     Err(err) => println!("err: {}", err),
+        //   }
+        // }
       }
     });
     tasks.push(task);
@@ -117,7 +148,7 @@ fn create_blocks() -> Vec<BlockNats> {
     .unwrap();
   let mut blocks: Vec<BlockNats> = Vec::new();
   blocks.push(BlockNats {
-    id: 100,
+    // id: 100,
     coin_id: 2422, // i32,
     height: 100,   // i32,
     time: SystemTime::now()
@@ -136,11 +167,11 @@ fn create_blocks() -> Vec<BlockNats> {
     stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
-    duration: 10, 
+    duration: 10,
     shares: 10,
   });
   blocks.push(BlockNats {
-    id: 100,
+    // id: 100,
     coin_id: 2422, // i32,
     height: 100,   // i32,
     time: SystemTime::now()
@@ -159,11 +190,11 @@ fn create_blocks() -> Vec<BlockNats> {
     stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
-    duration: 10, 
+    duration: 10,
     shares: 10,
   });
   blocks.push(BlockNats {
-    id: 100,
+    // id: 100,
     coin_id: 2422, // i32,
     height: 100,   // i32,
     time: SystemTime::now()
@@ -182,7 +213,7 @@ fn create_blocks() -> Vec<BlockNats> {
     stratum_id: stratum_id, //String,
     mode: 1,       //i8,
     party_pass: "12345".to_string(), //String,
-    duration: 10, 
+    duration: 10,
     shares: 10,
   });
   blocks
@@ -210,7 +241,6 @@ fn create_shares() -> Vec<ShareNats> {
     mode: 1,
     party_pass: "12345".to_string(),
     stratum_id: stratum_id,
-    
   });
   shares.push(ShareNats {
     user_id: 11111,

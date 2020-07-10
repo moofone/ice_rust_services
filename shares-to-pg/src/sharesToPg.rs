@@ -11,17 +11,35 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
-const INSERTINTERVAL: u64 = 50;
+const INSERTINTERVAL: u64 = 1000;
 const DELETEINTERVAL: u64 = 2000;
-const WINDOW_LENGTH: u64 = 2 * 60 * 60;
+const WINDOW_LENGTH: u64 = 24 * 60 * 60;
 
 #[tokio::main]
 async fn main() {
   let mut tasks = Vec::new();
-  //setup nats
-  let nc = establish_nats_connection();
-  // let coins: Vec<i32> = vec![2422, 1234];
-  let pg_pool = establish_pg_connection();
+
+  //TODO add sentry
+
+  // Initilize the nats connection
+  let nc = match establish_nats_connection() {
+    Ok(n) => n,
+    Err(e) => {
+      println!("Nats did not connect: {}", e);
+      // crash and sentry ULTRA IMPORTANT
+      panic!("Nats did not connect: {}", e);
+    }
+  };
+  // establish PG pool
+  let pg_pool = match establish_pg_connection() {
+    Ok(p) => p,
+    Err(e) => {
+      // crash and sentry ULTRA IMPORTANT
+      panic!("PG pool failed to connect: {}", e)
+    }
+  };
+
+  // setup our shares queueu
   let shares: VecDeque<SharePGInsertable> = VecDeque::new();
   let shares = Arc::new(Mutex::new(shares));
 
@@ -32,7 +50,10 @@ async fn main() {
     let channel = format!("shares.>");
     let sub = match nc.queue_subscribe(&channel, "shares_to_pg_worker") {
       Ok(sub) => sub,
-      Err(err) => panic!("Queue Sub coin failed: {}"),
+      Err(err) => {
+        // crash and sentry ULTRA IMPORTANT
+        panic!("Queue Sub coin failed: {}", err)
+      }
     };
     // prep queue to be used in a thread
     let shares = shares.clone();
@@ -86,12 +107,21 @@ async fn main() {
         tokio::spawn(async move {
           let conn = match pg_pool.get() {
             Ok(conn) => conn,
-            Err(err) => panic!("error getting mysql connection: {}", err),
+            Err(err) => {
+              // crash and sentry BIG ISSUE
+              panic!("error getting PG connection: {}", err)
+            }
           };
 
           if shares_vec.len() > 0 {
             // insert the array
-            insert_shares_pg(&conn, shares_vec).expect("Share insert failed");
+            match insert_shares_pg(&conn, shares_vec) {
+              Ok(_) => (),
+              Err(err) => {
+                // sentry that we failed to insert shares
+                println!("Failed to insert shares. err: {}", err);
+              }
+            }
           }
         });
       }
@@ -108,7 +138,10 @@ async fn main() {
         interval.tick().await;
         let conn = match pg_pool.get() {
           Ok(conn) => conn,
-          Err(err) => panic!("error getting mysql connection: {}", err),
+          Err(err) => {
+            // crash - sentry, why cant we get a connection
+            panic!("error getting PG connection: {}", err)
+          }
         };
         let time_window_start = SystemTime::now()
           .duration_since(UNIX_EPOCH)
@@ -118,7 +151,10 @@ async fn main() {
         //println!("DELETING SHARES");
         match delete_shares_older_than(&conn, time_window_start as i64) {
           Ok(_) => (),
-          Err(err) => println!("Deleting shares failed: {}", err),
+          Err(err) => {
+            // move on and sentry - why cant we delete?
+            println!("Deleting shares failed: {}", err)
+          }
         };
       }
     });
@@ -145,13 +181,13 @@ fn sharenats_to_sharepginsertable(s: ShareNats) -> SharePGInsertable {
   SharePGInsertable {
     user_id: s.user_id,
     worker_id: s.worker_id,
-    coin_id: s.coin_id as i16,
+    coin_id: s.coin_id,
     time: s.timestamp,
     difficulty: s.difficulty,
-    // share_diff: s.share_diff,
+    share_diff: s.share_diff,
     block_diff: s.block_diff,
-    algo: s.algo as i16,
-    mode: s.mode as i16,
+    algo: s.algo,
+    mode: s.mode,
     block_reward: s.block_reward,
     party_pass: s.party_pass,
     stratum_id: s.stratum_id,

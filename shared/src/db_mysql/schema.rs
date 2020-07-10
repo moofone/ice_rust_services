@@ -16,6 +16,7 @@ table! {
     stratum_id -> Text,
     mode -> Text,
     party_pass -> Text,
+    state -> Integer,
   }
 }
 table! {
@@ -115,5 +116,14 @@ table! {
   modes(id){
     id-> Int4,
     name -> Text,
+  }
+}
+
+table! {
+  users (id) {
+    id -> Int4,
+    display_name -> Text,
+    email -> Text,
+    password -> Text,
   }
 }

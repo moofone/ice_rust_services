@@ -1,7 +1,7 @@
 pub mod shares {
 
   #[cfg(test)]
-  use diesel::debug_query;
+  // use diesel::debug_query;
   use diesel::delete;
   use diesel::dsl::sql;
   use diesel::insert_into;

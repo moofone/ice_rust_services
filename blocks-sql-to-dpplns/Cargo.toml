@@ -8,7 +8,7 @@ edition = "2018"
 
 
 [[bin]]
-name = "blocksSqlToDPPLNS"
+name = "blocks_sql_to_dpplns"
 path = "src/blocksSqlToDPPLNS.rs"
 
 [dependencies]

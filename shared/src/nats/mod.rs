@@ -14,7 +14,7 @@ pub fn establish_nats_connection() -> Result<NatsConnection, std::io::Error> {
   let nats_pass = env::var("NATS_PASSWORD").expect("NATS_PASSWORD must be set");
 
   println!(
-    "url: {}, user: {}, pass: {}",
+    "NATS --- url: {}, user: {}, pass: {}",
     nats_url, nats_user, nats_pass
   );
   let con = nats::ConnectionOptions::new().with_user_pass(&nats_user, &nats_pass);

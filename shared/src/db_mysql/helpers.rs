@@ -23,8 +23,8 @@ pub mod accounts {
   ) -> Result<(), Error> {
     update(accounts.filter(id.eq(account.id)))
       .set(balance.eq(balance + amount))
-      .execute(conn);
-    Ok(())
+      .execute(conn)
+      .map(|_| ())
   }
 }
 
@@ -35,7 +35,7 @@ pub mod earnings {
   };
   use diesel::result::Error;
   use diesel::{delete, insert_into, mysql::MysqlConnection, prelude::*, update};
-  use std::time::{SystemTime, UNIX_EPOCH};
+  // use std::time::{SystemTime, UNIX_EPOCH};
 
   /// Inserts earnings to MySQL database.
   pub fn insert_earnings_mysql(
@@ -62,14 +62,15 @@ pub mod earnings {
   ) -> Result<(), Error> {
     update(earnings.filter(id.eq(earning.id)))
       .set(status.eq(2))
-      .execute(conn);
-    Ok(())
+      .execute(conn)
+      .map(|_| ())
   }
 
   // delete bad earnings
   pub fn delete_earning_mysql(conn: &MysqlConnection, earning: &EarningMYSQL) -> Result<(), Error> {
-    delete(earnings.filter(id.eq(earning.id))).execute(conn);
-    Ok(())
+    delete(earnings.filter(id.eq(earning.id)))
+      .execute(conn)
+      .map(|_| ())
   }
 }
 pub mod kdablocks {
@@ -99,13 +100,13 @@ pub mod blocks {
 
   pub fn get_blocks_unprocessed_mysql(conn: &MysqlConnection) -> Result<Vec<BlockMYSQL>, Error> {
     // select blocks that have not been sent to dpplns
-    let mut time_start = (SystemTime::now()
+    let time_start = (SystemTime::now()
       .duration_since(UNIX_EPOCH)
       .unwrap()
       .as_secs()
       - 3600) as i64;
     blocks
-      .filter(category.eq("new"))
+      .filter(state.eq(0))
       .filter(time.ge(time_start))
       .load::<BlockMYSQL>(conn)
   }
@@ -115,14 +116,14 @@ pub mod blocks {
     block: &BlockMYSQL,
   ) -> Result<(), Error> {
     diesel::update(blocks.filter(id.eq(block.id)))
-      .set((category.eq("unconfirmed"), confirmations.eq(0)))
-      .execute(conn);
-    Ok(())
+      .set(state.eq(1))
+      .execute(conn)
+      .map(|_| ())
   }
 }
 pub mod coins {
   use super::super::{models::Coin, schema::coins::dsl::*};
-  use diesel::result::Error;
+  // use diesel::result::Error;
   use diesel::{mysql::MysqlConnection, prelude::*};
 
   pub fn get_coins_mysql(conn: &MysqlConnection) -> Vec<Coin> {
@@ -147,17 +148,18 @@ pub mod algorithms {
     conn: &MysqlConnection,
   ) -> Result<HashMap<String, AlgorithmMYSQL>, Error> {
     // select blocks that have not been sent to dpplns
-    let algosVec = match algorithms.load::<AlgorithmMYSQL>(conn) {
+    let algos_vec = match algorithms.load::<AlgorithmMYSQL>(conn) {
       Ok(a) => a,
-      Err(e) => panic!("failed to get algos"),
+      Err(e) => panic!("failed to get algos: {}", e),
     };
-    let mut algosMap = HashMap::new();
-    for algo in algosVec {
-      algosMap.insert(algo.name.to_string(), algo);
+    let mut algos_map = HashMap::new();
+    for algo in algos_vec {
+      algos_map.insert(algo.name.to_string(), algo);
     }
-    Ok(algosMap)
+    Ok(algos_map)
   }
 }
+
 pub mod modes {
   use super::super::{models::ModeMYSQL, schema::modes::dsl::*};
   use diesel::result::Error;
@@ -166,17 +168,59 @@ pub mod modes {
 
   pub fn get_modes_mysql(conn: &MysqlConnection) -> Result<HashMap<String, ModeMYSQL>, Error> {
     // select blocks that have not been sent to dpplns
-    let modesVec = match modes.load::<ModeMYSQL>(conn) {
+    let modes_vec = match modes.load::<ModeMYSQL>(conn) {
       Ok(m) => m,
-      Err(e) => panic!("failed to get modes"),
+      Err(e) => panic!("failed to get modes : {}", e),
     };
-    let mut modesMap = HashMap::new();
-    for mode in modesVec {
-      modesMap.insert(mode.name.to_string(), mode);
+    let mut modes_map = HashMap::new();
+    for mode in modes_vec {
+      modes_map.insert(mode.name.to_string(), mode);
     }
-    Ok(modesMap)
+    Ok(modes_map)
   }
 }
+
+// todo !!
+// pub mod users {
+
+//   #![allow(proc_macro_derive_resolution_fallback)]
+//   use super::super::schema::users;
+
+//   use super::super::{models::UserMYSQL, schema::users::dsl::*};
+//   use diesel::result::Error;
+//   use diesel::{mysql::MysqlConnection, prelude::*};
+//   // use std::collections::HashMap;
+
+//   //odes.load::<ModeMYSQL>(conn) {
+//   //   Ok(m) => m,
+//   //   Err(e) => panic!("failed to get modes"),
+//   // };
+//   // /
+//   pub fn get_users_mysql(conn: &MysqlConnection) -> Result<Vec<UserMYSQL>, Error> {
+//     users.load::<UserMYSQL>(conn)
+//   }
+
+//   // get
+
+//   // insert
+
+//   // update
+
+//   // delete
+
+//   //     .map(|users| Json(users))
+//   //     .map_err(|error| error_status(error))
+
+//   // pub fn all(connection: &MysqlConnection) -> QueryResult<Vec<User>> {
+//   //   users::table.load::<User>(&*connection)
+//   // }
+
+//   // fn error_status(error: Error) -> Status {
+//   //   match error {
+//   //       Error::NotFound => Status::NotFound,
+//   //       _ => Status::InternalServerError
+//   //   }
+// }
 
 // }
 // pub mod workers {

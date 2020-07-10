@@ -1,5 +1,5 @@
 use super::schema::{earnings, shares};
-use super::util::unix_timestamp;
+// use super::util::unix_timestamp;
 use serde::{Deserialize, Serialize};
 // use diesel::deserialize::Queryable;
 // type MySQLDB = diesel::mysql::Mysql;
