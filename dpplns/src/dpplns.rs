@@ -28,8 +28,11 @@ final goal (ShareMin => min usable data for a share that will go into the queue)
 extern crate shared;
 use diesel::prelude::*;
 use shared::db_mysql::{
-  establish_mysql_connection, helpers::earnings::insert_earnings_mysql,
-  models::EarningMYSQLInsertable, MysqlPool,
+  establish_mysql_connection,
+  helpers::blocks::{get_blocks_unprocessed_mysql, update_block_to_unconfirmed_mysql},
+  helpers::earnings::insert_earnings_mysql,
+  models::{BlockMYSQL, EarningMYSQLInsertable},
+  MysqlPool,
 };
 use shared::nats::{
   establish_nats_connection,
@@ -49,12 +52,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{interval_at, Duration, Instant};
 
 // constants
+const BLOCK_SELECT_INTERVAL: u64 = 10;
 const NORMAL_FEE: f64 = 0.01;
 const SOLO_FEE: f64 = 0.02;
 const PARTY_FEE: f64 = 0.02;
-const WINDOW_LENGTH: u64 = 300; //2 * 60 * 60;  //s
-                                //const DECAY_COUNT: u64 = WINDOW_LENGTH / DECAY_INTERVAL; // 1/decay_count cant be infiniti repeating
-                                //const DECAY_FACTOR: f64 = 1.0 / DECAY_COUNT as f64;
+const WINDOW_LENGTH: u64 = 2 * 60 * 60; //s
+                                        //const DECAY_COUNT: u64 = WINDOW_LENGTH / DECAY_INTERVAL; // 1/decay_count cant be infiniti repeating
+                                        //const DECAY_FACTOR: f64 = 1.0 / DECAY_COUNT as f64;
 const DECAY_INTERVAL: u64 = 15; // s
                                 // Minimum data required to be stored in the queue
                                 // share minified is used to update the hashmap
@@ -167,6 +171,12 @@ async fn main() {
       println!("Nats did not connect: {}", e);
       panic!("Nats did not connect: {}", e);
     }
+  };
+
+  //setup msqyl
+  let mysql_pool = match establish_mysql_connection() {
+    Ok(p) => p,
+    Err(e) => panic!("MYSQL FAILED: {}", e),
   };
 
   // setup threads array so the program doesnt end right away
