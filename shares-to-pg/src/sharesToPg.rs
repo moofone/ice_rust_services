@@ -14,6 +14,7 @@ use tokio::time;
 const INSERTINTERVAL: u64 = 1000;
 const DELETEINTERVAL: u64 = 2000;
 const WINDOW_LENGTH: u64 = 24 * 60 * 60;
+use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() {
@@ -85,15 +86,14 @@ async fn main() {
       let mut interval = time::interval(Duration::from_millis(INSERTINTERVAL));
       loop {
         interval.tick().await;
-
         // lock the shares queue
         let mut shares = shares.lock().unwrap();
 
         // create a new vec for insertable shares
         let mut shares_vec: Vec<SharePGInsertable> = Vec::new();
-        if shares.len() > 0 {
-          println!("Shares Moved from queue to vec {}", shares.len());
-        }
+        // if shares.len() > 0 {
+        //   println!("Shares Moved from queue to vec {}", shares.len());
+        // }
 
         // empty the queue into the vec
         while shares.len() > 0 {

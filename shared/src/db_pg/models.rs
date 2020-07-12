@@ -7,21 +7,37 @@ use serde::{Deserialize, Serialize};
 #[derive(Queryable, Serialize, Deserialize)]
 // #[table_name = "shares"]
 pub struct SharePg {
-  pub id: i32,
+  pub id: i64,
   pub user_id: i32,
   pub worker_id: i32,
   pub coin_id: i16,
   pub time: i64,
-  pub algo: i16,
   pub difficulty: f64,
   pub share_diff: f64,
-  pub block_reward: f64,
   pub block_diff: f64,
+  pub algo: i16,
   pub mode: i16,
+  pub block_reward: f64,
   pub party_pass: String,
   pub stratum_id: i16,
 }
-
+/// Earning model for inserts.
+#[derive(Insertable, Serialize, Deserialize)]
+#[table_name = "shares"]
+pub struct SharePGInsertable {
+  pub user_id: i32,
+  pub worker_id: i32,
+  pub coin_id: i16,
+  pub time: i64,
+  pub difficulty: f64,
+  pub share_diff: f64,
+  pub block_diff: f64,
+  pub algo: i16,
+  pub mode: i16,
+  pub block_reward: f64,
+  pub party_pass: String,
+  pub stratum_id: i16,
+}
 // impl Default for SharePg {
 //   fn default() -> Self {
 //     SharePg {
@@ -90,24 +106,6 @@ pub struct SharePg {
 //     )
 //   }
 // }
-
-/// Earning model for inserts.
-#[derive(Insertable, Serialize, Deserialize)]
-#[table_name = "shares"]
-pub struct SharePGInsertable {
-  pub user_id: i32,
-  pub worker_id: i32,
-  pub coin_id: i16,
-  pub time: i64,
-  pub difficulty: f64,
-  pub share_diff: f64,
-  pub block_diff: f64,
-  pub algo: i16,
-  pub mode: i16,
-  pub block_reward: f64,
-  pub party_pass: String,
-  pub stratum_id: i16,
-}
 
 /// Earning model for queries.
 #[derive(Queryable)]

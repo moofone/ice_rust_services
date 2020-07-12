@@ -17,7 +17,15 @@ pub fn establish_nats_connection() -> Result<NatsConnection, std::io::Error> {
     "NATS --- url: {}, user: {}, pass: {}",
     nats_url, nats_user, nats_pass
   );
-  let con = nats::ConnectionOptions::new().with_user_pass(&nats_user, &nats_pass);
+  let con = nats::Options::with_user_pass(&nats_user, &nats_pass);
+  //   // .set_disconnect_callback(test)
+  //   // .set_close_callback(test)
+  //   .max_reconnects(Some(2));
+
+  // // .set_reconnect_callback(&test)
 
   con.connect(&nats_url)
+}
+pub fn test() {
+  println!("HI");
 }

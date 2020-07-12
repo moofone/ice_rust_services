@@ -139,10 +139,10 @@ pub struct BlockNats {
   pub difficulty: f64,
   pub difficulty_user: f64,
   pub blockhash: String,
-  pub algo: i16,
+  pub algo: String,
   pub category: String,
-  pub stratum_id: i16,
-  pub mode: i16,
+  pub stratum_id: String,
+  pub mode: String,
   pub party_pass: String,
   pub duration: i64,
   pub shares: i64,
@@ -171,3 +171,47 @@ pub struct KDABlockNats {
   pub duration: i64,
   pub shares: i64,
 }
+
+/// Auth model.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumAuthNats {
+  pub ip: String,
+  pub version: String,
+  pub port: i32,
+  pub worker_name: String,
+  pub password: String,
+  pub uuid: String,
+  pub stratum_id: String,
+  pub coin_id: i16,
+}
+// impl StratumAuthNats {
+//   fn parse_worker_name(self) -> (String, String) {
+//     match self.worker_name.find('.') {
+//       Some(index) => (&self.worker_name[..index], &self.worker_name[index + 1..]),
+//       None => (self.worker_name, "default"),
+//     }
+//   }
+// }
+
+/// subscribe model.
+/// TODO
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumSubcribeNats {
+  pub ip: String,
+  pub version: String,
+  pub port: i32,
+  pub worker_name: String,
+  pub password: String,
+  pub uuid: String,
+}
+
+// /// Auth model.
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct StratumAuthNats {
+//   pub ip: String,
+//   pub version: String,
+//   pub port: i32,
+//   pub worker_name: String,
+//   pub password: String,
+//   pub uuid: String,
+// }

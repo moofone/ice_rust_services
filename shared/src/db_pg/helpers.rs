@@ -39,7 +39,7 @@ pub mod shares {
     conn: &PgConnection,
     time_greater_than: i64,
     time_less_than: i64,
-  ) -> Result<Vec<SharePg>, diesel::result::Error> {
+  ) -> Result<Vec<SharePg>, Error> {
     shares
       .filter(time.ge(time_greater_than))
       .filter(time.lt(time_less_than))

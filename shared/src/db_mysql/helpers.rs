@@ -93,10 +93,25 @@ pub mod kdablocks {
 pub mod shares {}
 
 pub mod blocks {
-  use super::super::{models::BlockMYSQL, schema::blocks::dsl::*};
+  use super::super::{
+    models::{BlockMYSQL, BlockMYSQLInsertable},
+    schema::blocks::dsl,
+    schema::blocks::dsl::*,
+  };
   use diesel::result::Error;
-  use diesel::{mysql::MysqlConnection, prelude::*};
+  use diesel::{insert_into, mysql::MysqlConnection, prelude::*};
   use std::time::{SystemTime, UNIX_EPOCH};
+
+  /// Inserts block to MySQL database.
+  pub fn insert_blocks_mysql(
+    conn: &MysqlConnection,
+    blocks_vec: Vec<BlockMYSQLInsertable>,
+  ) -> Result<(), Error> {
+    insert_into(dsl::blocks)
+      .values(&blocks_vec)
+      .execute(conn)
+      .map(|_| ())
+  }
 
   pub fn get_blocks_unprocessed_mysql(conn: &MysqlConnection) -> Result<Vec<BlockMYSQL>, Error> {
     // select blocks that have not been sent to dpplns
@@ -111,7 +126,7 @@ pub mod blocks {
       .load::<BlockMYSQL>(conn)
   }
 
-  pub fn update_block_to_unconfirmed_mysql(
+  pub fn update_block_to_processed_mysql(
     conn: &MysqlConnection,
     block: &BlockMYSQL,
   ) -> Result<(), Error> {

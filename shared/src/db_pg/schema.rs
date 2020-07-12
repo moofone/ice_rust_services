@@ -34,18 +34,18 @@ table! {
 }
 
 table! {
-  shares {
-    id -> Int4,
+  shares (id) {
+    id -> Int8,
     user_id -> Int4,
     worker_id -> Int4,
     coin_id -> Int2,
     time -> Int8,
-    algo -> Int2,
     difficulty -> Double,
     share_diff -> Double,
-    block_reward -> Double,
     block_diff -> Double,
+    algo -> Int2,
     mode -> Int2,
+    block_reward -> Double,
     party_pass -> Text,
     stratum_id -> Int2,
   }

@@ -4,10 +4,9 @@ extern crate log;
 #[macro_use]
 extern crate diesel;
 
-extern crate serde;
-#[macro_use]
-extern crate rmp_serde as rmps;
 extern crate rmp;
+extern crate rmp_serde as rmps;
+extern crate serde;
 
 extern crate dotenv;
 extern crate lazy_static;

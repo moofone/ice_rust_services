@@ -6,13 +6,30 @@ use shared::db_mysql::{
   models::KDABlockMYSQLInsertable, MysqlPool,
 };
 use shared::nats::establish_nats_connection;
-use shared::nats::models::KDABlockNats;
+use shared::nats::models::StratumAuthNats;
 // use std::time::{Duration, SystemTime, UNIX_EPOCH};
 // use tokio::time;
 
 // const INSERTINTERVAL: u64 = 50;
 // const DELETEINTERVAL: u64 = 2000;
 // const WINDOW_LENGTH: u64 = 2 * 60 * 60;
+
+fn handle_msg_auth(msg: &Vec<u8>) {
+  let auth: StratumAuthNats = match rmp_serde::from_read_ref(&msg) {
+    Ok(auth) => auth,
+    Err(e) => panic!("Error parsing Startum auth nats. e: {}", e),
+  };
+}
+// fn parse_
+fn parse_password(password: &String) {}
+// fn parse_ip(ip: &String)-> {
+
+// }
+fn handle_msg_subscribe() {}
+
+fn handle_msg_diff_update() {}
+
+fn handle_msg_disconnect() {}
 
 #[tokio::main]
 async fn main() {
@@ -44,71 +61,39 @@ async fn main() {
   {
     // setup nats channel
     let subject = format!("kdablocks");
-    // let sub = match nc.queue_subscribe(&channel, "kdablock_workes") {
-    let sub = match nc.subscribe(&subject) {
+    let sub = match nc.queue_subscribe(&subject, "kdablocks_worker") {
+      // let sub = match nc.subscribe(&subject) {
       Ok(sub) => sub,
       Err(e) => panic!("Queue kdablock coin failed: {}", e),
     };
 
     println!("spawning block task");
     // spawn a thread for this channel to listen to shares
-    let blocks_task = tokio::task::spawn(async move {
+    tasks.push(tokio::task::spawn(async move {
       // grab a copy fo the pool to passed into the thread
       let mysql_pool = mysql_pool.clone();
       println!("about to listen loop sub");
 
       for msg in sub.messages() {
-        println!("kdablock from nats");
-
         // // grab a copy to be passed into the thread
         let mysql_pool = mysql_pool.clone();
         println!("about to spawn thread");
 
         // spawn a thread for the block
         tokio::task::spawn_blocking(move || {
-          println!("processing block");
-          // parse the block
-          let kdablock = match parse_kdablock(&msg.data) {
-            Ok(val) => val,
-            Err(e) => {
-              // massive sentry error
-              println!("Error parsing kdablock: {}", e);
-              // return from tokio async block and move on
-              return;
-            }
-          };
-
           // grab a mysql pool connection
           let conn = match mysql_pool.get() {
             Ok(conn) => conn,
             Err(e) => {
               // crash and sentry BIG ISSUE
               println!("Error mysql conn. e: {}", e);
-              panic!(
-                "error getting mysql connection. block: {}, e: {}",
-                &kdablock.height, e
-              );
+              panic!("error getting mysql connection e: {}",);
             }
           };
-
-          // create a queue of blocks ( incase we want to scale or bulk insert)
-          let mut kdablocks: Vec<KDABlockMYSQLInsertable> = Vec::new();
-          let height = kdablock.height;
-          kdablocks.push(kdablock);
-          match insert_kdablocks_mysql(&conn, kdablocks) {
-            Ok(_) => (),
-            Err(e) => {
-              // yell to sentry that we failed to insert a block
-              println!("block not inserted. e: {}", e);
-              return Err(format!("Insert failed: {}, {}", height, e)).unwrap();
-            }
-          };
-          println!("block inserted\n");
         });
       }
-      println!("done listening to messages");
-    });
-    tasks.push(blocks_task);
+    }));
+    // tasks.push(blocks_task);
     // }
   }
   // loop {}

@@ -5,60 +5,60 @@ use tokio::time;
 
 #[tokio::main]
 async fn main() {
-    let mut tasks = Vec::new();
+  let mut tasks = Vec::new();
 
-    // setup our items queueu
-    let items: VecDeque<i32> = VecDeque::new();
-    let items = Arc::new(Mutex::new(items));
+  // setup our items queueu
+  let items: VecDeque<i32> = VecDeque::new();
+  let items = Arc::new(Mutex::new(items));
 
-    // loop 1
-    {
+  // loop 1
+  {
+    let items = items.clone();
+
+    // spawn a thread for first loop
+    tasks.push(tokio::spawn(async move {
+      let mut interval = time::interval(Duration::from_millis(1000));
+
+      loop {
+        interval.tick().await;
+
+        // lock items
+        let mut items = items.lock().unwrap();
+        // do somethign to items
+        items.push_back(5);
+        println!("pushed: 5");
+      }
+    }))
+  }
+
+  // loop 2
+  {
+    let items = items.clone();
+
+    // spawn a new thead for second loop
+    tasks.push(tokio::spawn(async move {
+      let mut interval = time::interval(Duration::from_millis(2000));
+
+      // loop waiting for an interval
+      loop {
+        interval.tick().await;
+
         let items = items.clone();
+        // spawn a 3rd thread to run something longer
+        tokio::spawn(async move {
+          let mut interval2 = time::interval(Duration::from_millis(4000));
+          interval2.tick().await;
+          interval2.tick().await;
 
-        // spawn a thread for first loop
-        tasks.push(tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_millis(1000));
+          let mut items = items.lock().unwrap();
+          println!("Popped after 4s: {}", items.pop_front().unwrap());
+        });
+      }
+    }))
+  }
 
-            loop {
-                interval.tick().await;
-
-                // lock items
-                let mut items = items.lock().unwrap();
-                // do somethign to items
-                items.push_back(5);
-                println!("pushed: 5");
-            }
-        }))
-    }
-
-    // loop 2
-    {
-        let items = items.clone();
-
-        // spawn a new thead for second loop
-        tasks.push(tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_millis(2000));
-
-            // loop waiting for an interval
-            loop {
-                interval.tick().await;
-
-                let items = items.clone();
-                // spawn a 3rd thread to run something longer
-                tokio::spawn(async move {
-                    let mut interval2 = time::interval(Duration::from_millis(4000));
-                    interval2.tick().await;
-                    interval2.tick().await;
-
-                    let mut items = items.lock().unwrap();
-                    println!("Popped after 4s: {}", items.pop_front().unwrap());
-                });
-            }
-        }))
-    }
-
-    // join tasks to ensure everything keeps running
-    for handle in tasks {
-        handle.await.unwrap();
-    }
+  // join tasks to ensure everything keeps running
+  for handle in tasks {
+    handle.await.unwrap();
+  }
 }

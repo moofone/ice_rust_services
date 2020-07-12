@@ -44,53 +44,54 @@ async fn main() {
     }
   };
 
-  let sub = nc.subscribe("kdablocks").unwrap();
+  // let sub = nc.subscribe("kdablocks").unwrap();
+  let sub = nc.subscribe(">").unwrap();
   //let kdablocks_sub = nc.subscribe("kdablocks").unwrap();
 
   for msg in sub.messages() {
     let subject = &msg.subject;
-    if subject.starts_with("shares.2423") {
-      let share = match parse_share(&msg.data) {
-        Ok(val) => val,
-        Err(err) => {
-          println!("Error parsing share: {}", err);
-          continue;
-        }
-      };
-      println!(
-        "{}Share:{}{}",
-        color::Fg(color::Rgb(255, 0, 255)),
-        color::Fg(color::Reset),
-        share
-      );
-    } else {
-      //if subject.starts_with("kdablocks") {
-      let kdablock = match parse_kdablock(&msg.data) {
-        Ok(val) => val,
-        Err(err) => {
-          println!("Error parsing kdablock: {}", err);
-          continue;
-        }
-      };
-      println!(
-        "{}{:?}{}",
-        color::Fg(color::Rgb(255, 50, 255)),
-        kdablock,
-        color::Fg(color::Reset)
-      );
-    }
-
-    /*
-    let share = match parse_share(&msg.data) {
-      Ok(val) => val,
-      Err(err) => {
-        println!("Error parsing share: {}", err);
-        continue;
-      }
-    };
-    */
-    //println!("Share: {}", share);
+    println!("subject: {}", subject);
+    // if subject.starts_with("shares.2423") {
+    //   let share = match parse_share(&msg.data) {
+    //     Ok(val) => val,
+    //     Err(err) => {
+    //       println!("Error parsing share: {}", err);
+    //       continue;
+    //     }
+    //   };
+    //   println!(
+    //     "{}Share:{}{}",
+    //     color::Fg(color::Rgb(255, 0, 255)),
+    //     color::Fg(color::Reset),
+    //     share
+    //   );
+    // } else {
+    //   //if subject.starts_with("kdablocks") {
+    //   let kdablock = match parse_kdablock(&msg.data) {
+    //     Ok(val) => val,
+    //     Err(err) => {
+    //       println!("Error parsing kdablock: {}", err);
+    //       continue;
+    //     }
+    //   };
+    //   println!(
+    //     "{}{:?}{}",
+    //     color::Fg(color::Rgb(255, 50, 255)),
+    //     kdablock,
+    //     color::Fg(color::Reset)
+    //   );
   }
+
+  /*
+  let share = match parse_share(&msg.data) {
+    Ok(val) => val,
+    Err(err) => {
+      println!("Error parsing share: {}", err);
+      continue;
+    }
+  };
+  */
+  //println!("Share: {}", share);
 
   println!("done!")
   //  for msg in kdablocks_sub.messages() {

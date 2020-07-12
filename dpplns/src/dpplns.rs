@@ -29,15 +29,12 @@ extern crate shared;
 use diesel::prelude::*;
 use shared::db_mysql::{
   establish_mysql_connection,
-  helpers::blocks::{get_blocks_unprocessed_mysql, update_block_to_unconfirmed_mysql},
+  helpers::blocks::{get_blocks_unprocessed_mysql, update_block_to_processed_mysql},
   helpers::earnings::insert_earnings_mysql,
   models::{BlockMYSQL, EarningMYSQLInsertable},
-  MysqlPool,
+  // MysqlPool,
 };
-use shared::nats::{
-  establish_nats_connection,
-  models::{DPPLNSBlockNats, ShareNats},
-};
+use shared::nats::{establish_nats_connection, models::ShareNats};
 
 use shared::db_pg::{
   establish_pg_connection, helpers::shares::select_shares_newer_pg, models::SharePg,
@@ -52,7 +49,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{interval_at, Duration, Instant};
 
 // constants
-const BLOCK_SELECT_INTERVAL: u64 = 10;
 const NORMAL_FEE: f64 = 0.01;
 const SOLO_FEE: f64 = 0.02;
 const PARTY_FEE: f64 = 0.02;
@@ -154,13 +150,13 @@ async fn main() {
   let shares_queue = Arc::new(Mutex::new(ShareQueueType::new()));
   let user_scores_map = Arc::new(Mutex::new(UserScoreMapType::new()));
 
-  // {
-  //   // lock the shares and scores, load last window from database
-  //   let mut sha = shares_queue.lock().unwrap();
-  //   let mut sco = user_scores_map.lock().unwrap();
-  //   load_shares_from_db(&mut *sha, &mut *sco);
-  //   rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha)
-  // }
+  {
+    // lock the shares and scores, load last window from database
+    let mut sha = shares_queue.lock().unwrap();
+    let mut sco = user_scores_map.lock().unwrap();
+    load_shares_from_db(&mut *sha, &mut *sco);
+    rebuild_decayed_map_and_trim_queue(&mut *sco, &mut *sha)
+  }
 
   // capture_message("DPPLNS loaded shares and is now live", Level::Info);
 
@@ -213,40 +209,51 @@ async fn main() {
   }
   //-----------------------BLOCKS LISTENER----------------------------
   {
-    // subscribe to the nats blocks channel
-    let block_sub = match nc.queue_subscribe("dpplns", "dpplns_worker") {
-      Ok(b) => b,
-      Err(e) => panic!("Nats sub to blocks failed: {}", e),
-    };
-
-    //setup msqyl
-    let mysql_pool = match establish_mysql_connection() {
-      Ok(p) => p,
-      Err(e) => panic!("MYSQL FAILED: {}", e),
-    };
-
     // grab a copy of user_users to be passed into listener thread
     let user_scores = user_scores_map.clone();
-
+    // listen to scheduled events
+    let sub = match nc.queue_subscribe("events.dpplns", "dpplns_worker") {
+      Ok(s) => s,
+      Err(e) => panic!("Nats sub to shares failed: {}", e),
+    };
     // spawn a new task to listen for new blocks
     let block_task = tokio::spawn({
       async move {
-        // loop through the blocking messages() listener waiting for blocks
-        for msg in block_sub.messages() {
-          // grab a copy fo the pool to passed into the thread
-          let mysql_pool = mysql_pool.clone();
+        for _ in sub.messages() {
+          // ignore the message and run
+          println!("dpplns event received, running");
 
-          // grab a copy of user_users to be passed into processing thread
-          let user_scores = user_scores.clone();
+          // grab a mysql pool connection
+          let conn = match mysql_pool.get() {
+            Ok(conn) => conn,
+            Err(e) => {
+              // crash and sentry BIG ISSUE
+              println!("Error mysql conn. e: {}", e);
+              panic!("error getting mysql connection. e: {}", e);
+            }
+          };
 
-          tokio::spawn(async move {
-            // try to parse the block
+          // get new blocks within the hour
+          let blocks: Vec<BlockMYSQL> = match get_blocks_unprocessed_mysql(&conn) {
+            Ok(blocks) => blocks,
+            Err(e) => {
+              println!("Error getting blocks. e: {}", e);
+              panic!("error... e: {}", e);
+            }
+          };
+
+          for block in blocks {
+            // set the block in mysql to unconfirmed, with 0 confirmations
+            match update_block_to_processed_mysql(&conn, &block) {
+              Ok(_) => (),
+              Err(e) => println!("Update block failed. block: {}, e: {}", &block.id, e),
+            }
             let sco = user_scores.lock().unwrap();
-            match handle_block(&msg, &sco, mysql_pool) {
+            match handle_block(&block, &sco, &conn) {
               Ok(_) => (),
               Err(e) => println!("block failed. e: {}", e),
             }
-          });
+          }
         }
       }
     });
@@ -280,10 +287,29 @@ async fn main() {
 }
 
 // main dpplns function, takes in a block and generates the earnings for each user
-fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMapType, String> {
+fn dpplns(block: &BlockMYSQL, dict: &UserScoreMapType) -> Result<EarningMapType, String> {
   let mut f = NORMAL_FEE;
   let mut earnings_dict: EarningMapType = HashMap::new();
   // let log = "".to_string();
+
+  match block.coin_id {
+    2418 => f = 0.04,  // epic
+    2426 => f = 0.12,  // atom
+    2408 => f = 0.015, // nim
+    2422 => f = 0.015, // mwc
+    2423 => f = 0.02,  // kda
+    2416 => f = 0.022, // arw
+    2410 => f = 0.02,  // sin
+    _ => f = NORMAL_FEE,
+  }
+  println!("f: {}", 1.0 - f);
+
+  if &block.mode == "party" {
+    f = 0.03;
+  }
+  if &block.mode == "solo" {
+    f = 0.03;
+  }
 
   // setup block fees and log
   match block.mode.as_str() {
@@ -296,23 +322,21 @@ fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMap
       );
     }
     "party" => {
-      let share_payout = (1.0 - PARTY_FEE as f64) * block.amount;
+      let share_payout = (1.0 - f as f64) * block.amount;
       let party_pass = &block.party_pass;
-      f = PARTY_FEE;
+      //f = PARTY_FEE;
       println!(
         "Block Party: {} Payout: {}, Fee: {}%",
-        &party_pass,
-        share_payout,
-        f * 100.0
+        &party_pass, share_payout, f
       );
     }
     "solo" => {
-      let share_payout = (1.0 - SOLO_FEE as f64) * block.amount;
+      let share_payout = (1.0 - f as f64) * block.amount;
       println!(
         "YOLO SOLO!! B: {} Payout: {}, Fee: {}%",
         block.amount,
         share_payout,
-        SOLO_FEE * 100.0
+        f * 100.0
       );
       earnings_dict.insert(block.userid, share_payout);
       return Ok(earnings_dict);
@@ -366,7 +390,7 @@ fn dpplns(block: &DPPLNSBlockNats, dict: &UserScoreMapType) -> Result<EarningMap
 
 // inserts earnings into the databases
 fn insert_earnings(
-  block: &DPPLNSBlockNats,
+  block: &BlockMYSQL,
   earnings_dict: EarningMapType,
   pool_conn: &MysqlConnection,
 ) -> Result<(), diesel::result::Error> {
@@ -439,14 +463,14 @@ fn parse_share(msg: &Vec<u8>) -> Result<ShareMinified, rmp_serde::decode::Error>
   Ok(share)
 }
 
-// converts nats message to DPPLNSBlockNats
-fn parse_block(msg: &Vec<u8>) -> Result<DPPLNSBlockNats, rmp_serde::decode::Error> {
-  let b: DPPLNSBlockNats = match rmp_serde::from_read_ref(&msg) {
-    Ok(b) => b,
-    Err(err) => return Err(err),
-  };
-  Ok(b)
-}
+// // converts nats message to DPPLNSBlockNats
+// fn parse_block(msg: &Vec<u8>) -> Result<DPPLNSBlockNats, rmp_serde::decode::Error> {
+//   let b: DPPLNSBlockNats = match rmp_serde::from_read_ref(&msg) {
+//     Ok(b) => b,
+//     Err(err) => return Err(err),
+//   };
+//   Ok(b)
+// }
 
 // add share to queue and add share to map
 fn handle_share(dict: &mut UserScoreMapType, shares: &mut ShareQueueType, share: ShareMinified) {
@@ -458,30 +482,20 @@ fn handle_share(dict: &mut UserScoreMapType, shares: &mut ShareQueueType, share:
 
 // handle block
 fn handle_block(
-  msg: &nats::Message,
+  block: &BlockMYSQL, //msg: &nats::Message,
   sco: &UserScoreMapType,
-  mysql_pool: MysqlPool,
+  conn: &MysqlConnection,
 ) -> Result<(), Box<dyn Error>> {
   // parse the block
-  let block = parse_block(&msg.data)?;
+  //let block = parse_block(&msg.data)?;
 
   // generate earnings_dict, if none returned, encounted a weird issue
-  let earnings_dict = dpplns(&block, &*sco)?;
+  let earnings_dict = dpplns(block, &*sco)?;
 
   // drop score map to be used elsewhere
   drop(sco);
 
-  // grab a mysql pool connection and insert earnings
-  let conn = match mysql_pool.get() {
-    Ok(c) => c,
-    Err(e) => {
-      return Err(format!(
-        "Mysql connection failed on block: {}. e: {}",
-        block.id, e
-      ))?
-    }
-  };
-  insert_earnings(&block, earnings_dict, &conn)?;
+  insert_earnings(block, earnings_dict, conn)?;
   Ok(())
 }
 
@@ -514,7 +528,7 @@ fn load_shares_from_db(
     .as_secs();
   let step_count = 10;
   let step_size = (time_now - time_window_start) / step_count;
-
+  let mut shares_loaded = 0;
   // loop through selecting 1/step_count windows of shares and load them
   for _ in 0..step_count {
     let new_shares: Vec<SharePg> = match select_shares_newer_pg(
@@ -526,6 +540,7 @@ fn load_shares_from_db(
       Err(e) => panic!("Failed to load shares from PG: {}", e),
     };
     time_window_start += step_size;
+    shares_loaded += new_shares.len();
     // println!("Queryied {}", new_shares.len());
 
     for share in new_shares {
@@ -536,6 +551,7 @@ fn load_shares_from_db(
     }
     println!("Loaded Shares Processed");
   }
+  println!("Total Shares loaded: {}", shares_loaded);
   // println!("Queue size {}", shares_queue.len());
   // println!("{:?}", map);
 }
@@ -562,21 +578,22 @@ fn calc_score(
     return 1.0;
   }
 
-  let mut f;
-  match coin_id {
-    2418 => f = 0.04,  // epic
-    2426 => f = 0.12,  // atom
-    2408 => f = 0.015, // nim
-    2422 => f = 0.015, // mwc
-    2423 => f = 0.03,  // kda
-    2416 => f = 0.022, // arw
-    2410 => f = 0.02,  // sin
-    _ => f = NORMAL_FEE,
-  }
+  // let mut f;
+  // match coin_id {
+  //   2418 => f = 0.04,  // epic
+  //   2426 => f = 0.12,  // atom
+  //   2408 => f = 0.015, // nim
+  //   2422 => f = 0.015, // mwc
+  //   2423 => f = 0.03,  // kda
+  //   2416 => f = 0.022, // arw
+  //   2410 => f = 0.02,  // sin
+  //   _ => f = NORMAL_FEE,
+  // }
+  // println!("f: {}", 1.0 - f);
 
-  if mode == 2 {
-    f = PARTY_FEE
-  }
+  // if mode == 2 {
+  //   f = PARTY_FEE
+  // }
 
   let diff = difficulty;
   let share_diff = share_diff;
@@ -586,6 +603,7 @@ fn calc_score(
   //let s = sqrt(MIN(diff, block_diff) / work_diff) * work_diff / 2
   let user_id = user_id;
 
+  let f = 0.0;
   let s = (share_diff.min(block_diff) / diff).sqrt() * diff;
   let mut share_payout = (1.0 - f) * (s * b);
   match user_id {
@@ -643,7 +661,7 @@ fn rebuild_decayed_map_and_trim_queue(map: &mut UserScoreMapType, shares: &mut S
     .duration_since(UNIX_EPOCH)
     .unwrap()
     .as_secs();
-  let start = time_current;
+  // let start = time_current;
   let time_window_start = time_current - WINDOW_LENGTH;
   if shares.len() == 0 {
     println!("No shares to decay in queue");
