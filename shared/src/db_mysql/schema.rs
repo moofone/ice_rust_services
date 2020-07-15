@@ -17,6 +17,8 @@ table! {
     mode -> Text,
     party_pass -> Text,
     state -> Integer,
+    duration -> Integer,
+    shares -> BigInt,
   }
 }
 table! {

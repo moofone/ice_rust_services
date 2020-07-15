@@ -151,7 +151,7 @@ async fn main() {
             Ok(val) => val,
             Err(e) => {
               // massive sentry error
-              println!("Error parsing kdablock: {}", e);
+              println!("Error parsing block: {}", e);
               // return from tokio async block and move on
               return;
             }
@@ -211,7 +211,10 @@ fn parse_block(msg: &Vec<u8>) -> Result<BlockMYSQLInsertable, rmp_serde::decode:
     Ok(b) => b,
     Err(err) => return Err(err),
   };
-  let block = blocknats_to_blockmysqlinsertable(b);
+  let mut block = blocknats_to_blockmysqlinsertable(b);
+  if block.mode.eq("") {
+    block.mode = "normal".to_string();
+  }
   Ok(block)
 }
 fn kdablocknats_to_blockmysqlinsertable(b: KDABlockNats) -> KDABlockMYSQLInsertable {
@@ -252,7 +255,9 @@ fn blocknats_to_blockmysqlinsertable(b: BlockNats) -> BlockMYSQLInsertable {
     stratum_id: b.stratum_id,
     mode: b.mode,
     party_pass: b.party_pass,
-    state: 0
+    state: 0,
+    duration: b.duration,
+    shares: b.shares
     // chainid: b.chainid,
     // node_id: b.node_id,
   }

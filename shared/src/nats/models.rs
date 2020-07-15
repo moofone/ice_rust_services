@@ -144,7 +144,7 @@ pub struct BlockNats {
   pub stratum_id: String,
   pub mode: String,
   pub party_pass: String,
-  pub duration: i64,
+  pub duration: i32,
   pub shares: i64,
 }
 

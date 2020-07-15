@@ -47,7 +47,9 @@ async fn main() {
   // let sub = nc.subscribe("kdablocks").unwrap();
   let sub = nc.subscribe(">").unwrap();
   //let kdablocks_sub = nc.subscribe("kdablocks").unwrap();
-
+  // loop {
+  //   if let Some(msg) = sub.next() {}
+  // }
   for msg in sub.messages() {
     let subject = &msg.subject;
     println!("subject: {}", subject);

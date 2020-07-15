@@ -192,6 +192,8 @@ pub struct BlockMYSQL {
   pub mode: String,
   pub party_pass: String,
   pub state: i32,
+  pub duration: i32,
+  pub shares: i64,
 }
 /// block model for inserts.
 #[derive(Insertable)]
@@ -213,6 +215,8 @@ pub struct BlockMYSQLInsertable {
   pub mode: String,
   pub party_pass: String,
   pub state: i32,
+  pub duration: i32,
+  pub shares: i64,
 }
 
 impl Default for BlockMYSQL {
@@ -235,6 +239,8 @@ impl Default for BlockMYSQL {
       mode: "norm".to_string(),
       party_pass: "".to_string(),
       state: 0,
+      duration: 0,
+      shares: 0,
     }
   }
 }

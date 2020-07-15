@@ -10,7 +10,7 @@ use std::env;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 static BLOCKINTERVAL: u64 = 8000;
-static SHAREINTERVAL: u64 = 1;
+static SHAREINTERVAL: u64 = 2;
 
 #[tokio::main]
 async fn main() {
@@ -33,60 +33,60 @@ async fn main() {
   {
     let nc = nc.clone();
     // let mut rng = rng.clone();
-    let task = tokio::spawn(async move {
-      let mut interval = time::interval(Duration::from_millis(BLOCKINTERVAL));
-      loop {
-        interval.tick().await;
+    // let task = tokio::spawn(async move {
+    //   let mut interval = time::interval(Duration::from_millis(BLOCKINTERVAL));
+    //   loop {
+    //     interval.tick().await;
 
-        // tokio::spawn(async move {
-        //   println!("hi");
-        //   return;
-        //   println!("bye")
-        // });
-        let mut rng = rand::thread_rng();
+    //     // tokio::spawn(async move {
+    //     //   println!("hi");
+    //     //   return;
+    //     //   println!("bye")
+    //     // });
+    //     let mut rng = rand::thread_rng();
 
-        let blocks = create_blocks();
-        let channel = format!("kdablocks");
+    //     let blocks = create_blocks();
+    //     let channel = format!("kdablocks");
 
-        let kdablock = KDABlockNats {
-          coin_id: 69,
-          height: 69,
-          time: 69,
-          userid: 69,
-          workerid: 69,
-          confirmations: 69,
-          amount: 1.0,
-          difficulty: 1.0,
-          difficulty_user: 1.0,
-          blockhash: "poopy".to_string(),
-          algo: "poopy".to_string(),
-          category: "poopy".to_string(),
-          stratum_id: "poopy".to_string(),
-          chainid: 69,
-          node_id: "poopy".to_string(),
-          mode: "poopy".to_string(),
-          party_pass: "poopy".to_string(),
-          duration: 69,
-          shares: 69,
-        };
-        let msgpack_data = rmp_serde::to_vec(&kdablock).unwrap();
-        match nc.publish(&channel, msgpack_data) {
-          Ok(val) => println!("pubbed"),
-          Err(err) => println!("err: {}", err),
-        }
-        // for mut block in blocks {
-        //   // block.id = rng.gen::<i32>().abs();
+    //     let kdablock = KDABlockNats {
+    //       coin_id: 69,
+    //       height: 69,
+    //       time: 69,
+    //       userid: 69,
+    //       workerid: 69,
+    //       confirmations: 69,
+    //       amount: 1.0,
+    //       difficulty: 1.0,
+    //       difficulty_user: 1.0,
+    //       blockhash: "poopy".to_string(),
+    //       algo: "poopy".to_string(),
+    //       category: "poopy".to_string(),
+    //       stratum_id: "poopy".to_string(),
+    //       chainid: 69,
+    //       node_id: "poopy".to_string(),
+    //       mode: "poopy".to_string(),
+    //       party_pass: "poopy".to_string(),
+    //       duration: 69,
+    //       shares: 69,
+    //     };
+    //     let msgpack_data = rmp_serde::to_vec(&kdablock).unwrap();
+    //     match nc.publish(&channel, msgpack_data) {
+    //       Ok(val) => println!("pubbed"),
+    //       Err(err) => println!("err: {}", err),
+    //     }
+    //     // for mut block in blocks {
+    //     //   // block.id = rng.gen::<i32>().abs();
 
-        //   let msgpack_data = rmp_serde::to_vec(&block).unwrap();
+    //     //   let msgpack_data = rmp_serde::to_vec(&block).unwrap();
 
-        //   match nc.publish(&channel, msgpack_data) {
-        //     Ok(val) => (),
-        //     Err(err) => println!("err: {}", err),
-        //   }
-        // }
-      }
-    });
-    tasks.push(task);
+    //     //   match nc.publish(&channel, msgpack_data) {
+    //     //     Ok(val) => (),
+    //     //     Err(err) => println!("err: {}", err),
+    //     //   }
+    //     // }
+    //   }
+    // });
+    // tasks.push(task);
   }
   //----------------------------SHARES--------------------------------
   // shares push
@@ -140,84 +140,84 @@ async fn main() {
   }
 }
 
-fn create_blocks() -> Vec<BlockNats> {
-  dotenv().ok();
-  let stratum_id = env::var("STRATUM_ID")
-    .expect("STRATUM_ID must be set")
-    .parse::<i16>()
-    .unwrap();
-  let mut blocks: Vec<BlockNats> = Vec::new();
-  blocks.push(BlockNats {
-    // id: 100,
-    coin_id: 2422, // i32,
-    height: 100,   // i32,
-    time: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64, //i64,
-    userid: 11111, //i32,
-    workerid: 100, //i32,
-    confirmations: 100, //i32,
-    amount: 1000.0, //f64,
-    difficulty: 100.0, //f64,
-    difficulty_user: 100.0, //f64,
-    blockhash: "234".to_string(), //String,
-    algo: 2,       //i8,
-    category: "null".to_string(), //String,
-    stratum_id: stratum_id, //String,
-    mode: 1,       //i8,
-    party_pass: "12345".to_string(), //String,
-    duration: 10,
-    shares: 10,
-  });
-  blocks.push(BlockNats {
-    // id: 100,
-    coin_id: 2422, // i32,
-    height: 100,   // i32,
-    time: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64, //i64,
-    userid: 11111, //i32,
-    workerid: 100, //i32,
-    confirmations: 100, //i32,
-    amount: 1000.0, //f64,
-    difficulty: 100.0, //f64,
-    difficulty_user: 100.0, //f64,
-    blockhash: "234".to_string(), //String,
-    algo: 2,       //i8,
-    category: "null".to_string(), //String,
-    stratum_id: stratum_id, //String,
-    mode: 1,       //i8,
-    party_pass: "12345".to_string(), //String,
-    duration: 10,
-    shares: 10,
-  });
-  blocks.push(BlockNats {
-    // id: 100,
-    coin_id: 2422, // i32,
-    height: 100,   // i32,
-    time: SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_secs() as i64, //i64,
-    userid: 11111, //i32,
-    workerid: 100, //i32,
-    confirmations: 100, //i32,
-    amount: 1000.0, //f64,
-    difficulty: 100.0, //f64,
-    difficulty_user: 100.0, //f64,
-    blockhash: "234".to_string(), //String,
-    algo: 2,       //i8,
-    category: "null".to_string(), //String,
-    stratum_id: stratum_id, //String,
-    mode: 1,       //i8,
-    party_pass: "12345".to_string(), //String,
-    duration: 10,
-    shares: 10,
-  });
-  blocks
-}
+// fn create_blocks() -> Vec<BlockNats> {
+//   dotenv().ok();
+//   let stratum_id = env::var("STRATUM_ID")
+//     .expect("STRATUM_ID must be set")
+//     .parse::<i16>()
+//     .unwrap();
+//   let mut blocks: Vec<BlockNats> = Vec::new();
+//   blocks.push(BlockNats {
+//     // id: 100,
+//     coin_id: 2422, // i32,
+//     height: 100,   // i32,
+//     time: SystemTime::now()
+//       .duration_since(UNIX_EPOCH)
+//       .unwrap()
+//       .as_secs() as i64, //i64,
+//     userid: 11111, //i32,
+//     workerid: 100, //i32,
+//     confirmations: 100, //i32,
+//     amount: 1000.0, //f64,
+//     difficulty: 100.0, //f64,
+//     difficulty_user: 100.0, //f64,
+//     blockhash: "234".to_string(), //String,
+//     algo: 2,       //i8,
+//     category: "null".to_string(), //String,
+//     stratum_id: stratum_id, //String,
+//     mode: 1,       //i8,
+//     party_pass: "12345".to_string(), //String,
+//     duration: 10,
+//     shares: 10,
+//   });
+//   blocks.push(BlockNats {
+//     // id: 100,
+//     coin_id: 2422, // i32,
+//     height: 100,   // i32,
+//     time: SystemTime::now()
+//       .duration_since(UNIX_EPOCH)
+//       .unwrap()
+//       .as_secs() as i64, //i64,
+//     userid: 11111, //i32,
+//     workerid: 100, //i32,
+//     confirmations: 100, //i32,
+//     amount: 1000.0, //f64,
+//     difficulty: 100.0, //f64,
+//     difficulty_user: 100.0, //f64,
+//     blockhash: "234".to_string(), //String,
+//     algo: 2,       //i8,
+//     category: "null".to_string(), //String,
+//     stratum_id: stratum_id, //String,
+//     mode: 1,       //i8,
+//     party_pass: "12345".to_string(), //String,
+//     duration: 10,
+//     shares: 10,
+//   });
+//   blocks.push(BlockNats {
+//     // id: 100,
+//     coin_id: 2422, // i32,
+//     height: 100,   // i32,
+//     time: SystemTime::now()
+//       .duration_since(UNIX_EPOCH)
+//       .unwrap()
+//       .as_secs() as i64, //i64,
+//     userid: 11111, //i32,
+//     workerid: 100, //i32,
+//     confirmations: 100, //i32,
+//     amount: 1000.0, //f64,
+//     difficulty: 100.0, //f64,
+//     difficulty_user: 100.0, //f64,
+//     blockhash: "234".to_string(), //String,
+//     algo: 2,       //i8,
+//     category: "null".to_string(), //String,
+//     stratum_id: stratum_id, //String,
+//     mode: 1,       //i8,
+//     party_pass: "12345".to_string(), //String,
+//     duration: 10,
+//     shares: 10,
+//   });
+//   blocks
+// }
 fn create_shares() -> Vec<ShareNats> {
   dotenv().ok();
   let stratum_id = env::var("STRATUM_ID")

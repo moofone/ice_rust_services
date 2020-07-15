@@ -14,7 +14,6 @@ use tokio::time;
 const INSERTINTERVAL: u64 = 1000;
 const DELETEINTERVAL: u64 = 2000;
 const WINDOW_LENGTH: u64 = 24 * 60 * 60;
-use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() {
