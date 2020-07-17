@@ -484,7 +484,7 @@ fn dict_key_gen(mode: &String, coin_id: i32, algo: &String, party_pass: &String)
   match mode.as_str() {
     "normal" | "" => {
       let mut key = String::with_capacity(1 + coin_id.len() + 1 + algo.len());
-      key.push_str("N");
+      key.push_str("N:");
       key.push_str(&coin_id);
       key.push_str("-");
       key.push_str(algo);
@@ -494,7 +494,7 @@ fn dict_key_gen(mode: &String, coin_id: i32, algo: &String, party_pass: &String)
     "party" => {
       let mut key =
         String::with_capacity(1 + coin_id.len() + 1 + algo.len() + 1 + party_pass.len());
-      key.push_str("P");
+      key.push_str("P:");
       key.push_str(&coin_id);
       key.push_str("-");
       key.push_str(algo);
@@ -602,8 +602,6 @@ fn load_shares_from_db(
 
     for share in new_shares {
       let share = ShareMinified::from(share);
-      // decay the share initially
-      // share.share_payout *= calc_decay_factor(time_now as i64, share.time);
       handle_share(user_scores_map, shares_queue, share);
       // handle_share(shares_queue, share);
     }
@@ -731,41 +729,7 @@ fn rebuild_decayed_map(map: &mut UserScoreMapType, shares: &mut ShareQueueType) 
     .duration_since(UNIX_EPOCH)
     .unwrap()
     .as_millis();
-  // let start = time_current;
-  // let time_window_start = time_current - WINDOW_LENGTH;
-  // if shares.len() == 0 {
-  //   println!("No shares to decay in queue");
-  //   return;
-  // }
-
-  // // trim the queue first to avoid adding shares we dont want
-  // let mut time = shares.front().unwrap().time;
-  // let mut share: ShareMinified;
-  //todo
-  /*
-     calc the shortest trim time
-     while time < shortest trim time
-        check time against coin_id trim time
-        trim if needed
-  */
-  // while time < time_window_start as i64 && shares.len() > 0 {
-  //   share = shares.pop_front().unwrap();
-  //   time = share.time;
-  //   // update_map_by_removing_share(&mut map, share);
-  //   // trimmed += 1;
-  // }
-
-  // println!(
-  //   "Done Trimming, map-size: {}, queue-size: {}, took: {}ms",
-  //   map.len(),
-  //   shares.len(),
-  //   SystemTime::now()
-  //     .duration_since(UNIX_EPOCH)
-  //     .unwrap()
-  //     .as_millis()
-  //     - time_current_ms,
-  // );
-
+  // create a fresh map
   *map = UserScoreMapType::new();
 
   // loop through the shares and add to the map with the new decay'ed score
