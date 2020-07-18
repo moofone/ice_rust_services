@@ -183,6 +183,7 @@ pub struct StratumAuthNats {
   pub uuid: String,
   pub stratum_id: String,
   pub coin_id: i16,
+  pub mode: String,
 }
 // impl StratumAuthNats {
 //   fn parse_worker_name(self) -> (String, String) {
@@ -193,6 +194,25 @@ pub struct StratumAuthNats {
 //   }
 // }
 
+// nim strauth auth model
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumAuthNatsNIM {
+  pub username: String,
+  pub coin_id: i16,
+  pub ip: String,
+  pub difficulty: f64,
+  pub version: String,
+  pub consensus_mode: String,
+  pub worker_name: String,
+  pub uuid: u64,
+  pub algo: String,
+  pub time: i32,
+  pub stratum_id: i16,
+  pub mode: String,
+  pub password: String,
+  pub party_pass: String,
+  pub pid: i32,
+}
 /// subscribe model.
 /// TODO
 #[derive(Debug, Serialize, Deserialize)]
@@ -202,7 +222,7 @@ pub struct StratumSubcribeNats {
   pub port: i32,
   pub worker_name: String,
   pub password: String,
-  pub uuid: String,
+  pub uuid: u64,
 }
 
 // /// Auth model.
@@ -215,3 +235,6 @@ pub struct StratumSubcribeNats {
 //   pub password: String,
 //   pub uuid: String,
 // }
+
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct Stratum

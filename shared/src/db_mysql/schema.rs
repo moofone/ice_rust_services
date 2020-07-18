@@ -65,6 +65,9 @@ table! {
     id -> Integer,
     coinid -> Integer,
     balance -> Nullable<Double>,
+    username -> Text,
+    owner_id -> Integer,
+    owner_type -> Text,
 
   }
 }
@@ -92,9 +95,17 @@ table! {
     id -> Int4,
     coin_id -> Int2,
     user_id -> Int4,
-    worker_id -> Int4,
-    worker_name -> Text,
+    worker -> Text,
     hashrate -> Double,
+    owner_id -> Int4,
+    owner_type -> Text,
+    uuid -> Unsigned<BigInt>,
+    state -> Text,
+    ip_address -> Text,
+    version -> Text,
+    password -> Text,
+    algo -> Text,
+    mode -> Text,
   }
 }
 

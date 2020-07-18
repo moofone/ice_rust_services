@@ -54,10 +54,10 @@ const NORMAL_FEE: f64 = 0.01;
 const SOLO_FEE: f64 = 0.02;
 const PARTY_FEE: f64 = 0.02;
 const WINDOW_LENGTH: u64 = 2 * 60 * 60; //s
-const TRIM_INTERVAL: u64 = 1 * 5; //s
-                                  //const DECAY_COUNT: u64 = WINDOW_LENGTH / DECAY_INTERVAL; // 1/decay_count cant be infiniti repeating
-                                  //const DECAY_FACTOR: f64 = 1.0 / DECAY_COUNT as f64;
-const DECAY_INTERVAL: u64 = 15; // s
+const TRIM_INTERVAL: u64 = 1 * 15; //s
+                                   //const DECAY_COUNT: u64 = WINDOW_LENGTH / DECAY_INTERVAL; // 1/decay_count cant be infiniti repeating
+                                   //const DECAY_FACTOR: f64 = 1.0 / DECAY_COUNT as f64;
+const DECAY_INTERVAL: u64 = 60; // s
                                 // Minimum data required to be stored in the queue
                                 // share minified is used to update the hashmap
 #[derive(Debug, Clone)]
@@ -781,7 +781,7 @@ fn trim_shares_queue(shares: &mut ShareQueueType) {
         check time against coin_id trim time
         trim if needed
   */
-  println!("time: {}, time_window_start: {}", time, time_window_start);
+  // println!("time: {}, time_window_start: {}", time, time_window_start);
   while time < time_window_start as i32 && shares.len() > 0 {
     share = shares.pop_front().unwrap();
     time = share.time;
@@ -864,7 +864,7 @@ mod tests {
     rebuild_decayed_map(&mut map, &mut shares);
     // ensure map is correct
     println!("map post decay: {:?}", map);
-    let scores = map.get("N2048-blake2s").unwrap();
+    let scores = map.get("N:2048-blake2s").unwrap();
     assert_eq!(*scores.get(&1).unwrap(), 6.25);
   }
 

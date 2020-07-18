@@ -121,6 +121,9 @@ pub struct AccountMYSQL {
   pub id: i32,
   pub coinid: i32,
   pub balance: Option<f64>,
+  pub username: String,
+  pub owner_id: i32,
+  pub owner_type: String,
 }
 /// Earning model for queries.
 #[derive(Queryable)]
@@ -291,23 +294,41 @@ pub struct KDABlockMYSQLInsertable {
 }
 
 /// HashWorker model for queries.
-#[derive(Queryable, Identifiable)]
-pub struct Worker {
+#[derive(Queryable)]
+pub struct WorkerMYSQL {
   pub id: i32,
   pub coin_id: i16,
-  pub userid: i32,
-  pub worker_id: i32,
+  pub user_id: i32,
+  pub worker: String,
   pub hashrate: f64,
+  pub owner_id: i32,
+  pub owner_type: String,
+  pub uuid: u64,
+  pub state: String,
+  pub ip_address: String,
+  pub version: String,
+  pub password: String,
+  pub algo: String,
+  pub mode: String,
 }
 
-// #[derive(Insertable)]
-// #[table_name = "workers"]
-// pub struct HashWorkerRow {
-//   pub coin_id: i16,
-//   pub userid: i32,
-//   pub worker_id: i32,
-//   pub hashrate: f64,
-// }
+#[derive(Insertable)]
+#[table_name = "workers"]
+pub struct WorkerMYSQLInsertable {
+  pub coin_id: i16,
+  pub user_id: i32,
+  pub worker: String,
+  pub hashrate: f64,
+  pub owner_id: i32,
+  pub owner_type: String,
+  pub uuid: u64,
+  pub state: String,
+  pub ip_address: String,
+  pub version: String,
+  pub password: String,
+  pub algo: String,
+  pub mode: String,
+}
 
 /// Coin model
 #[derive(Debug, Queryable, Identifiable)]

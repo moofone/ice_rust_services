@@ -52,7 +52,7 @@ async fn main() {
   // }
   for msg in sub.messages() {
     let subject = &msg.subject;
-    println!("subject: {}", subject);
+    //println!("subject: {}", subject);
     // if subject.starts_with("shares.2423") {
     //   let share = match parse_share(&msg.data) {
     //     Ok(val) => val,

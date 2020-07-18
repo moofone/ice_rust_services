@@ -1,7 +1,7 @@
 pub mod accounts {
   use super::super::{models::AccountMYSQL, schema::accounts::dsl::*};
   use diesel::result::Error;
-  use diesel::{mysql::MysqlConnection, prelude::*, update};
+  use diesel::{insert_into, mysql::MysqlConnection, prelude::*, update};
 
   // gets account
   pub fn get_account_mysql(
@@ -12,6 +12,31 @@ pub mod accounts {
     accounts
       .filter(id.eq(account_id))
       .filter(coinid.eq(coin_id))
+      .first::<AccountMYSQL>(conn)
+  }
+
+  // get account by username
+  pub fn get_account_by_username_mysql(
+    conn: &MysqlConnection,
+    _username: &String,
+  ) -> Result<AccountMYSQL, Error> {
+    accounts
+      .filter(username.eq(_username))
+      .first::<AccountMYSQL>(conn)
+  }
+
+  // insert account by username
+  pub fn insert_account_mysql(
+    conn: &MysqlConnection,
+    _username: &String,
+    _coin_id: i32,
+  ) -> Result<AccountMYSQL, Error> {
+    insert_into(accounts)
+      .values((username.eq(&_username), coinid.eq(_coin_id)))
+      .execute(conn)?;
+
+    accounts
+      .filter(username.eq(&_username))
       .first::<AccountMYSQL>(conn)
   }
 
@@ -195,6 +220,65 @@ pub mod modes {
   }
 }
 
+// }
+pub mod workers {
+  use super::super::{
+    models::{WorkerMYSQL, WorkerMYSQLInsertable},
+    schema::workers::dsl::*,
+  };
+  use diesel::result::Error;
+  use diesel::{insert_into, mysql::MysqlConnection, prelude::*, update};
+
+  // get worker by worker name and owner
+  pub fn get_worker_by_worker_name_mysql(
+    conn: &MysqlConnection,
+    _owner_id: i32,
+    _owner_type: &String,
+    _worker: &String,
+  ) -> Result<WorkerMYSQL, Error> {
+    workers
+      .filter(owner_id.eq(_owner_id))
+      .filter(owner_type.eq(_owner_type))
+      .filter(worker.eq(_worker))
+      .first::<WorkerMYSQL>(conn)
+  }
+
+  // get worker by uuid
+  pub fn get_worker_by_uuid_mysql(
+    conn: &MysqlConnection,
+    _uuid: u64,
+  ) -> Result<WorkerMYSQL, Error> {
+    workers.filter(uuid.eq(_uuid)).first::<WorkerMYSQL>(conn)
+  }
+
+  // insert_worker_mysql(conn, WorkerMYSQLInsertable)
+  // inserts a new worker row with state connected
+  // insert account by username
+  pub fn insert_worker_mysql(
+    conn: &MysqlConnection,
+    _worker: WorkerMYSQLInsertable,
+  ) -> Result<WorkerMYSQL, Error> {
+    insert_into(workers).values(&_worker).execute(conn)?;
+
+    workers
+      .filter(uuid.eq(_worker.uuid))
+      .first::<WorkerMYSQL>(conn)
+  }
+
+  // update_worker_by_id_mysql(conn, WorkerMYSQL, state)
+  // update state using id
+
+  // update_worker_by_uuid_mysql(conn, uuid, state)
+  // update state using uuid
+  // update account balance
+  pub fn update_worker_mysql(conn: &MysqlConnection, _worker: &WorkerMYSQL) -> Result<(), Error> {
+    update(workers.filter(id.eq(_worker.id)))
+      .set((state.eq(&_worker.state), uuid.eq(_worker.uuid)))
+      .execute(conn)
+      .map(|_| ())
+  }
+}
+
 // todo !!
 // pub mod users {
 
@@ -235,22 +319,4 @@ pub mod modes {
 //   //       Error::NotFound => Status::NotFound,
 //   //       _ => Status::InternalServerError
 //   //   }
-// }
-
-// }
-// pub mod workers {
-//   use diesel::result::Error;
-//   use diesel::{mysql::MysqlConnection, prelude::*, update};
-
-//   // use super::super::{
-//   //   models::EarningInsertable,
-//   //   schema::earnings::{self, dsl},
-//   // };
-//   use super::super::{models::Worker::dsl::*, schema::workers::dsl};
-//   /// Inserts block to MySQL database.
-//   pub fn update_worker_mysql(conn: &MysqlConnection, worker: Worker) -> Result<(), Error> {
-//     update(dsl::workers.filter(id.eq(worker.id)))
-//       .set(hashrate.eq(worker.hashrate))
-//       .get_result(conn)
-//   }
 // }
