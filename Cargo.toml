@@ -1,5 +1,11 @@
 [workspace]
 members = [
+  "blocks-nats-to-sql",
   "dpplns",
-  "event_scheduler",
+  "earnings-to-balances",
+  "event-scheduler",
+  "nats_template",
+  "shared", 
+  "shares-to-pg",
+  "stratum-nats-to-sql"
 ]

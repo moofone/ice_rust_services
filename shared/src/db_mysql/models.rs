@@ -122,8 +122,6 @@ pub struct AccountMYSQL {
   pub coinid: i32,
   pub balance: Option<f64>,
   pub username: String,
-  pub owner_id: i32,
-  pub owner_type: String,
 }
 /// Earning model for queries.
 #[derive(Queryable)]
@@ -303,7 +301,7 @@ pub struct WorkerMYSQL {
   pub hashrate: f64,
   pub owner_id: i32,
   pub owner_type: String,
-  pub uuid: u64,
+  pub uuid: String,
   pub state: String,
   pub ip_address: String,
   pub version: String,
@@ -321,7 +319,7 @@ pub struct WorkerMYSQLInsertable {
   pub hashrate: f64,
   pub owner_id: i32,
   pub owner_type: String,
-  pub uuid: u64,
+  pub uuid: String,
   pub state: String,
   pub ip_address: String,
   pub version: String,

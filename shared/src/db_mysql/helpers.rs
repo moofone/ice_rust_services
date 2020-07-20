@@ -21,7 +21,7 @@ pub mod accounts {
     _username: &String,
   ) -> Result<AccountMYSQL, Error> {
     accounts
-      .filter(username.eq(_username))
+      .filter(username.like(_username))
       .first::<AccountMYSQL>(conn)
   }
 
@@ -246,7 +246,7 @@ pub mod workers {
   // get worker by uuid
   pub fn get_worker_by_uuid_mysql(
     conn: &MysqlConnection,
-    _uuid: u64,
+    _uuid: &String,
   ) -> Result<WorkerMYSQL, Error> {
     workers.filter(uuid.eq(_uuid)).first::<WorkerMYSQL>(conn)
   }
@@ -273,7 +273,7 @@ pub mod workers {
   // update account balance
   pub fn update_worker_mysql(conn: &MysqlConnection, _worker: &WorkerMYSQL) -> Result<(), Error> {
     update(workers.filter(id.eq(_worker.id)))
-      .set((state.eq(&_worker.state), uuid.eq(_worker.uuid)))
+      .set((state.eq(&_worker.state), uuid.eq(&_worker.uuid)))
       .execute(conn)
       .map(|_| ())
   }

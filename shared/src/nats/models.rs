@@ -204,7 +204,7 @@ pub struct StratumAuthNatsNIM {
   pub version: String,
   pub consensus_mode: String,
   pub worker_name: String,
-  pub uuid: u64,
+  pub uuid: String,
   pub algo: String,
   pub time: i32,
   pub stratum_id: i16,
@@ -213,6 +213,10 @@ pub struct StratumAuthNatsNIM {
   pub party_pass: String,
   pub pid: i32,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct placeholder {}
+
 /// subscribe model.
 /// TODO
 #[derive(Debug, Serialize, Deserialize)]
@@ -222,9 +226,30 @@ pub struct StratumSubcribeNats {
   pub port: i32,
   pub worker_name: String,
   pub password: String,
-  pub uuid: u64,
+  pub uuid: String,
 }
 
+// stratum model
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumStartNats {
+  pub pid: i32,
+  pub time: i32,
+  pub started: i32,
+  pub algo: String,
+  pub workers: i32,
+  pub port: i16,
+  pub symbol: String,
+  pub stratum_id: i16,
+}
+
+// stratum model
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumDifficultyNats {
+  pub username: String,
+  pub uuid: String,
+  pub difficulty: f64,
+  pub compact_target: u64,
+}
 // /// Auth model.
 // #[derive(Debug, Serialize, Deserialize)]
 // pub struct StratumAuthNats {
