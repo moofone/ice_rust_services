@@ -95,6 +95,7 @@ table! {
     userid -> Int4,
     worker -> Text,
     hashrate -> Double,
+    difficulty -> Double,
     owner_id -> Int4,
     owner_type -> Text,
     uuid -> Text,
@@ -141,16 +142,14 @@ table! {
 }
 
 table! {
-  stratums(id){
-    id-> Int4,
+  stratums(pid){
+    pid-> Int4,
     time -> Int4,
     started -> Int4,
     algo -> Text,
     workers -> Int4,
     port -> Int2,
     symbol -> Text,
-    url -> Text,
-    fds -> Int4,
-    stratum_id -> Int2,
+    stratum_id -> Text,
   }
 }

@@ -299,6 +299,7 @@ pub struct WorkerMYSQL {
   pub userid: i32,
   pub worker: String,
   pub hashrate: f64,
+  pub difficulty: f64,
   pub owner_id: i32,
   pub owner_type: String,
   pub uuid: String,
@@ -328,6 +329,7 @@ pub struct WorkerMYSQLInsertable {
   pub algo: String,
   pub mode: String,
   pub stratum_id: String,
+  pub difficulty: f64,
 }
 
 /// Coin model
@@ -367,14 +369,12 @@ pub struct UserMYSQL {
 #[derive(Insertable)]
 #[table_name = "stratums"]
 pub struct StratumMYSQLInsertable {
-  pub id: i32,
+  pub pid: i32,
   pub time: i32,
   pub started: i32,
   pub algo: String,
   pub workers: i32,
   pub port: i16,
   pub symbol: String,
-  pub url: String,
-  pub fds: i32,
-  pub stratum_id: i16,
+  pub stratum_id: String,
 }

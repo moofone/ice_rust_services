@@ -284,7 +284,11 @@ pub mod workers {
   // update worker by full id
   pub fn update_worker_mysql(conn: &MysqlConnection, _worker: &WorkerMYSQL) -> Result<(), Error> {
     update(workers.filter(id.eq(_worker.id)))
-      .set((state.eq(&_worker.state), uuid.eq(&_worker.uuid)))
+      .set((
+        state.eq(&_worker.state),
+        uuid.eq(&_worker.uuid),
+        difficulty.eq(&_worker.difficulty),
+      ))
       .execute(conn)
       .map(|_| ())
   }
@@ -298,10 +302,10 @@ pub mod stratums {
   // insert_stratum_mysql
   pub fn insert_stratum_mysql(
     conn: &MysqlConnection,
-    _stratum: StratumMYSQLInsertable,
+    _stratum: &StratumMYSQLInsertable,
   ) -> Result<(), Error> {
     insert_into(stratums)
-      .values(&_stratum)
+      .values(_stratum)
       .execute(conn)
       .map(|_| ())
   }
