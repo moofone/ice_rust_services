@@ -12,12 +12,15 @@ pub fn establish_nats_connection() -> Result<NatsConnection, std::io::Error> {
   let nats_url = env::var("NATS_URL").expect("NATS_URL must be set");
   let nats_user = env::var("NATS_USER").expect("NATS_USER must be set");
   let nats_pass = env::var("NATS_PASSWORD").expect("NATS_PASSWORD must be set");
+  // let nats_root_certificate = env::var("NATS_ROOT_CERT").expect("NATS_ROOT_CERT must be set");
 
   println!(
     "NATS --- url: {}, user: {}, pass: {}",
     nats_url, nats_user, nats_pass
   );
+  // let con = nats::Options::with_user_pass(&nats_user, &nats_pass);
   let con = nats::Options::with_user_pass(&nats_user, &nats_pass);
+  // .add_root_certificate(nats_root_certificate);
   //   // .set_disconnect_callback(test)
   //   // .set_close_callback(test)
   //   .max_reconnects(Some(2));

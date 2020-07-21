@@ -31,44 +31,51 @@ extern crate shared;
   - new
   - active
   - disconnected
-  - idle (active but no share for awhile)
+  - idle (active but no share for awhile)\
+
+
+  TODO LIST
+  - refactor for each tokio to be in its own function with its own tokio spawn
+    - will need to pass down a copy of mysql and nats into each function
+    - no data shared between them
 */
 // use sentry::{capture_message, integrations::failure::capture_error, Level};
 use diesel::prelude::*;
-
-// use dotenv::dotenv;
+use futures::join;
+use nats::Connection;
 use shared::db_mysql::{
   establish_mysql_connection,
   helpers::accounts::{get_account_by_username_mysql, insert_account_mysql},
   helpers::kdablocks::insert_kdablocks_mysql,
   helpers::workers::{
     get_worker_by_uuid_mysql, get_worker_by_worker_name_mysql, insert_worker_mysql,
-    update_worker_mysql,
+    update_worker_by_uuid_mysql, update_worker_mysql,
   },
   models::{AccountMYSQL, KDABlockMYSQLInsertable, WorkerMYSQL, WorkerMYSQLInsertable},
   MysqlPool,
 };
-use shared::nats::establish_nats_connection;
-use shared::nats::models::{StratumAuthNatsNIM, StratumStartNats};
-// use std::env;
+use shared::nats::models::{
+  StratumAuthNatsNIM, StratumDifficultyNats, StratumDisconnectNats, StratumStartNats,
+};
+use shared::nats::{establish_nats_connection, NatsConnection};
 use std::error::Error;
-// use std::time::{Duration, SystemTime, UNIX_EPOCH};
-// use tokio::time;
 
 // const INSERTINTERVAL: u64 = 50;
 // const DELETEINTERVAL: u64 = 2000;
 // const WINDOW_LENGTH: u64 = 2 * 60 * 60;
-struct generic_account {
+struct Generic_Account {
   // generic account that we can convert stratumauthnats into to use for workers
+  pub owner_id: i32,
+  pub owner_type: String,
+  pub coin_id: i32,
 }
 
 #[tokio::main]
 async fn main() {
-  dotenv().ok();
   // let _guard =
   //   sentry::init("https://f8ee06fb619843b1ae923d9111d855a9@sentry.watlab.icemining.ca/10");
 
-  let mut tasks = Vec::new();
+  // let mut tasks = Vec::new();
   // Initilize the nats connection
   let nc = match establish_nats_connection() {
     Ok(n) => n,
@@ -88,101 +95,26 @@ async fn main() {
   };
 
   // //-----------------------stratum AUTH LISTENER--------------------------------
-  {
-    let subject = format!("stratum.auth.2408");
-    let sub = match nc.queue_subscribe(&subject, "stratum_auth_worker") {
-      // let sub = match nc.subscribe(&subject) {
-      Ok(sub) => sub,
-      Err(e) => panic!("Queue stratum auth listener failed: {}", e),
-    };
-    tasks.push(tokio::task::spawn(async move {
-      //  grab a copy fo the pool to passed into the thread
-      let mysql_pool = mysql_pool.clone();
-
-      for msg in sub.messages() {
-        println!("Msg: {}", msg.subject);
-        let stratumAuthNIM = parse_msg_auth(&msg.data);
-
-        // grab a mysql pool connection
-        let conn = match mysql_pool.get() {
-          Ok(conn) => conn,
-          Err(e) => {
-            // crash and sentry BIG ISSUE
-            println!("Error mysql conn. e: {}", e);
-            panic!("error getting mysql connection e: {}",);
-          }
-        };
-
-        get_or_insert_account_nim(&conn, &stratumAuthNIM);
-      }
-    }))
-  }
+  let auth_listener = stratum_auth_listener(&mysql_pool, &nc);
 
   // //-----------------------stratum Start listener--------------------------------
-  {
-    let subject = format!("stratum.start");
-    let sub = match nc.queue_subscribe(&subject, "stratum_start_worker") {
-      // let sub = match nc.subscribe(&subject) {
-      Ok(sub) => sub,
-      Err(e) => panic!("Queue stratum start listener failed: {}", e),
-    };
-    tasks.push(tokio::task::spawn(async move {
-      //  grab a copy fo the pool to passed into the thread
-      let mysql_pool = mysql_pool.clone();
-
-      for msg in sub.messages() {
-        println!("Msg: {}", msg.subject);
-        let StratumStartNats = parse_msg_start(&msg.data);
-
-        // grab a mysql pool connection
-        let conn = match mysql_pool.get() {
-          Ok(conn) => conn,
-          Err(e) => {
-            // crash and sentry BIG ISSUE
-            println!("Error mysql conn. e: {}", e);
-            panic!("error getting mysql connection e: {}",);
-          }
-        };
-
-        // get_or_insert_account_nim(&conn, &stratumAuthNIM);
-      }
-    }))
-  }
+  let start_listener = stratum_start_listener(&mysql_pool, &nc);
 
   // //-----------------------stratum difficutly listener--------------------------------
-  {
-    let subject = format!("stratum.difficulty.2408");
-    let sub = match nc.queue_subscribe(&subject, "stratum_difficulty_worker") {
-      // let sub = match nc.subscribe(&subject) {
-      Ok(sub) => sub,
-      Err(e) => panic!("Queue stratum difficulty listener failed: {}", e),
-    };
-    tasks.push(tokio::task::spawn(async move {
-      //  grab a copy fo the pool to passed into the thread
-      let mysql_pool = mysql_pool.clone();
+  let difficulty_listener = stratum_difficulty_listener(&mysql_pool, &nc);
 
-      for msg in sub.messages() {
-        println!("Msg: {}", msg.subject);
-        let StratumStartNats = parse_msg_start(&msg.data);
+  // //-----------------------stratum difficutly listener--------------------------------
+  let disconnect_listener = stratum_disconnect_listener(&mysql_pool, &nc);
 
-        // grab a mysql pool connection
-        let conn = match mysql_pool.get() {
-          Ok(conn) => conn,
-          Err(e) => {
-            // crash and sentry BIG ISSUE
-            println!("Error mysql conn. e: {}", e);
-            panic!("error getting mysql connection e: {}",);
-          }
-        };
-
-        // get_or_insert_account_nim(&conn, &stratumAuthNIM);
-      }
-    }))
-  }
-
-  for handle in tasks {
-    handle.await.unwrap();
-  }
+  join!(
+    auth_listener,
+    start_listener,
+    difficulty_listener,
+    disconnect_listener
+  );
+  // for handle in tasks {
+  //   handle.await.unwrap();
+  // }
   // //-----------------------KDA BLOCKS LISTENER--------------------------------
   // {
   //   // setup nats channel
@@ -237,50 +169,190 @@ async fn main() {
 //   let block = kdablocknats_to_blockmysqlinsertable(b);
 //   Ok(block)
 // }
-// fn kdablocknats_to_blockmysqlinsertable(b: KDABlockNats) -> KDABlockMYSQLInsertable {
-//   KDABlockMYSQLInsertable {
-//     coin_id: b.coin_id as i32,
-//     height: b.height,
-//     time: b.time as i32,
-//     userid: b.userid,
-//     workerid: b.workerid,
-//     confirmations: b.confirmations,
-//     amount: b.amount,
-//     difficulty: b.difficulty,
-//     difficulty_user: b.difficulty_user,
-//     blockhash: b.blockhash,
-//     algo: b.algo,
-//     category: b.category,
-//     stratum_id: b.stratum_id,
-//     mode: b.mode,
-//     party_pass: b.party_pass,
-//     chainid: b.chainid,
-//     node_id: b.node_id,
-//   }
-// }
 
-fn parse_msg_auth(msg: &Vec<u8>) -> StratumAuthNatsNIM {
+fn stratum_auth_listener(
+  mysql_pool: &MysqlPool,
+  nc: &NatsConnection,
+) -> tokio::task::JoinHandle<()> {
+  //  grab a copy fo the pool to passed into the thread
+  let mysql_pool = mysql_pool.clone();
+  let subject = format!("stratum.auth.2408");
+  let sub = match nc.queue_subscribe(&subject, "stratum_auth_worker") {
+    // let sub = match nc.subscribe(&subject) {
+    Ok(sub) => sub,
+    Err(e) => panic!("Queue stratum auth listener failed: {}", e),
+  };
+  tokio::task::spawn(async move {
+    //  grab a copy fo the pool to passed into the thread
+    let mysql_pool = mysql_pool.clone();
+
+    for msg in sub.messages() {
+      println!("Msg: {}", msg.subject);
+      let stratumAuthNIM = parse_msg_auth(&msg.data).unwrap();
+
+      // grab a mysql pool connection
+      let conn = match mysql_pool.get() {
+        Ok(conn) => conn,
+        Err(e) => {
+          // crash and sentry BIG ISSUE
+          println!("Error mysql conn. e: {}", e);
+          panic!("error getting mysql connection e: {}",);
+        }
+      };
+
+      // get or insert the account
+      let gen_account = get_or_insert_account_nim(&conn, &stratumAuthNIM);
+
+      // insert or update the worker
+      insert_or_update_worker(&conn, &gen_account, &stratumAuthNIM);
+    }
+  })
+}
+
+fn stratum_start_listener(
+  mysql_pool: &MysqlPool,
+  nc: &NatsConnection,
+) -> tokio::task::JoinHandle<()> {
+  //  grab a copy fo the pool to passed into the thread
+  let mysql_pool = mysql_pool.clone();
+  let subject = format!("stratum.start");
+  let sub = match nc.queue_subscribe(&subject, "stratum_start_worker") {
+    // let sub = match nc.subscribe(&subject) {
+    Ok(sub) => sub,
+    Err(e) => panic!("Queue stratum start listener failed: {}", e),
+  };
+  tokio::task::spawn(async move {
+    //  grab a copy fo the pool to passed into the thread
+    let mysql_pool = mysql_pool.clone();
+
+    for msg in sub.messages() {
+      println!("Msg: {}", msg.subject);
+      let StratumStartNats = parse_msg_start(&msg.data);
+
+      // grab a mysql pool connection
+      let conn = match mysql_pool.get() {
+        Ok(conn) => conn,
+        Err(e) => {
+          // crash and sentry BIG ISSUE
+          println!("Error mysql conn. e: {}", e);
+          panic!("error getting mysql connection e: {}",);
+        }
+      };
+
+      // get_or_insert_account_nim(&conn, &stratumAuthNIM);
+    }
+  })
+}
+
+fn stratum_difficulty_listener(
+  mysql_pool: &MysqlPool,
+  nc: &NatsConnection,
+) -> tokio::task::JoinHandle<()> {
+  //  grab a copy fo the pool to passed into the thread
+  let mysql_pool = mysql_pool.clone();
+  let subject = format!("stratum.difficulty.2408");
+  let sub = match nc.queue_subscribe(&subject, "stratum_difficulty_worker") {
+    // let sub = match nc.subscribe(&subject) {
+    Ok(sub) => sub,
+    Err(e) => panic!("Queue stratum difficulty listener failed: {}", e),
+  };
+  tokio::task::spawn(async move {
+    //  grab a copy fo the pool to passed into the thread
+    let mysql_pool = mysql_pool.clone();
+
+    for msg in sub.messages() {
+      println!("Msg: {}", msg.subject);
+      let stratum_difficulty_nats = parse_msg_start(&msg.data);
+
+      // // grab a mysql pool connection
+      // let conn = match mysql_pool.get() {
+      //   Ok(conn) => conn,
+      //   Err(e) => {
+      //     // crash and sentry BIG ISSUE
+      //     println!("Error mysql conn. e: {}", e);
+      //     panic!("error getting mysql connection e: {}",);
+      //   }
+      // };
+    }
+  })
+}
+fn stratum_disconnect_listener(
+  mysql_pool: &MysqlPool,
+  nc: &NatsConnection,
+) -> tokio::task::JoinHandle<()> {
+  //  grab a copy fo the pool to passed into the thread
+  let mysql_pool = mysql_pool.clone();
+  let subject = format!("stratum.disconnect.2408");
+  let sub = match nc.queue_subscribe(&subject, "stratum_disconnect_worker") {
+    // let sub = match nc.subscribe(&subject) {
+    Ok(sub) => sub,
+    Err(e) => panic!("Queue stratum disconnect listener failed: {}", e),
+  };
+  tokio::task::spawn(async move {
+    //  grab a copy fo the pool to passed into the thread
+    let mysql_pool = mysql_pool.clone();
+
+    for msg in sub.messages() {
+      println!("Msg: {}", msg.subject);
+      let stratum_disconnect_nats = parse_msg_disconnect(&msg.data).unwrap();
+
+      // grab a mysql pool connection
+      let conn = match mysql_pool.get() {
+        Ok(conn) => conn,
+        Err(e) => {
+          // crash and sentry BIG ISSUE
+          println!("Error mysql conn. e: {}", e);
+          panic!("error getting mysql connection e: {}",);
+        }
+      };
+      handle_worker_disconnect(&conn, &stratum_disconnect_nats.uuid);
+    }
+  })
+}
+
+fn parse_msg_auth(msg: &Vec<u8>) -> Result<StratumAuthNatsNIM, rmp_serde::decode::Error> {
   let auth: StratumAuthNatsNIM = match rmp_serde::from_read_ref(&msg) {
     Ok(auth) => auth,
     Err(e) => panic!("Error parsing Startum auth nats. e: {}", e),
   };
   println!("stratum auth nats nim : {:?}", auth);
-  auth
+  Ok(auth)
 }
-fn parse_msg_start(msg: &Vec<u8>) -> StratumStartNats {
-  let stratum: StratumStartNats = match rmp_serde::from_read_ref(&msg) {
-    Ok(stratum) => stratum,
+fn parse_msg_start(msg: &Vec<u8>) -> Result<StratumStartNats, rmp_serde::decode::Error> {
+  let start: StratumStartNats = match rmp_serde::from_read_ref(&msg) {
+    Ok(start) => start,
     Err(e) => panic!("Error parsing Startum auth nats. e: {}", e),
   };
-  println!("stratum start nats nim : {:?}", stratum);
-  stratum
+  println!("stratum start nats nim : {:?}", start);
+  Ok(start)
+}
+fn parse_msg_difficulty(msg: &Vec<u8>) -> Result<StratumDifficultyNats, rmp_serde::decode::Error> {
+  let difficulty: StratumDifficultyNats = match rmp_serde::from_read_ref(&msg) {
+    Ok(difficulty) => difficulty,
+    Err(e) => panic!("Error parsing Startum auth nats. e: {}", e),
+  };
+  println!("stratum difficulty nats nim : {:?}", difficulty);
+  Ok(difficulty)
+}
+fn parse_msg_disconnect(msg: &Vec<u8>) -> Result<StratumDisconnectNats, rmp_serde::decode::Error> {
+  let disconnect: StratumDisconnectNats = match rmp_serde::from_read_ref(&msg) {
+    Ok(disconnect) => disconnect,
+    Err(e) => panic!("Error parsing Startum auth nats. e: {}", e),
+  };
+  println!("stratum disconnect nats nim : {:?}", disconnect);
+  Ok(disconnect)
 }
 
 fn get_or_insert_account_nim(
   pooled_conn: &MysqlConnection,
   new_msg: &StratumAuthNatsNIM,
-) -> Result<(), Box<dyn Error>> {
+) -> Generic_Account {
   let is_username = Some(new_msg.username.find('@'));
+  let mut gen_account = Generic_Account {
+    owner_id: 0,
+    owner_type: "".to_string(),
+    coin_id: 0,
+  };
   println!("{}", &new_msg.username);
   if is_username != None {
     let account = match get_account_by_username_mysql(pooled_conn, &new_msg.username) {
@@ -294,64 +366,58 @@ fn get_or_insert_account_nim(
         }
       }
     };
+    gen_account.owner_id = account.id;
+    gen_account.owner_type = "account".to_string();
+    gen_account.coin_id = account.coinid;
   }
-  Ok(())
+
+  gen_account
 }
 
-fn handle_worker_connect(
+fn insert_or_update_worker(
   pooled_conn: &MysqlConnection,
-  account: &AccountMYSQL,
+  account: &Generic_Account,
   new_msg: &StratumAuthNatsNIM,
 ) {
-  // if new_msg.worker_name.len() > 0 {
-  //   if let Ok(worker) = get_worker_by_worker_name_mysql(
-  //     pooled_conn,
-  //     account.owner_id,
-  //     &account.owner_type,
-  //     &new_msg.worker_name,
-  //   ) {
-  //     if worker.state != "active" {
-  //       update_worker_mysql(pooled_conn, &worker).unwrap();
-  //     }
-  //   }
-  // } else {
-  //   let worker = WorkerMYSQLInsertable {
-  //     coin_id: new_msg.coin_id,
-  //     user_id: account.owner_id,
-  //     worker: new_msg.worker_name.to_string(),
-  //     hashrate: 0.0,
-  //     owner_id: account.owner_id,
-  //     owner_type: account.owner_type.to_string(),
-  //     uuid: new_msg.uuid.to_string(),
-  //     state: "new".to_string(),
-  //     ip_address: new_msg.ip.to_string(),
-  //     version: new_msg.version.to_string(),
-  //     password: new_msg.password.to_string(),
-  //     algo: new_msg.algo.to_string(),
-  //     mode: new_msg.mode.to_string(),
-  //   };
-  //   insert_worker_mysql(pooled_conn, worker).unwrap();
-  // }
-
-  // on worker connect, if named worker...
-  //   check the table for worker name
-  //   if worker name exists...
-  //     check active
-  //       if active is true...
-  //         insert a new row - this will be the case for duplicate names, or edge case disconnects
-  //       if active is false...
-  //         update the row
-  //   if worker name does not exists
-  //     add a row, set state to active, set uuid
-  // if not named worker
-  //   inser a row with a uuid and set state to active
+  if new_msg.worker_name.len() > 0 {
+    if let Ok(mut worker) = get_worker_by_worker_name_mysql(
+      pooled_conn,
+      account.owner_id,
+      &account.owner_type,
+      &new_msg.worker_name,
+    ) {
+      if worker.state != "active" {
+        worker.state = "active".to_string();
+        worker.uuid = new_msg.uuid.to_string();
+        update_worker_mysql(pooled_conn, &worker).unwrap();
+      }
+    }
+  } else {
+    let worker = WorkerMYSQLInsertable {
+      coinid: new_msg.coin_id,
+      userid: account.owner_id,
+      worker: new_msg.worker_name.to_string(),
+      hashrate: 0.0,
+      owner_id: account.owner_id,
+      owner_type: account.owner_type.to_string(),
+      uuid: new_msg.uuid.to_string(),
+      state: "new".to_string(),
+      ip_address: new_msg.ip.to_string(),
+      version: new_msg.version.to_string(),
+      password: new_msg.password.to_string(),
+      algo: new_msg.algo.to_string(),
+      mode: new_msg.mode.to_string(),
+      stratum_id: new_msg.stratum_id.to_string(),
+    };
+    insert_worker_mysql(pooled_conn, worker).unwrap();
+  }
 }
 
 fn handle_worker_disconnect(pooled_conn: &MysqlConnection, uuid: &String) {
   // go into the table and set uuid row to state disconnected
   if let Ok(mut worker) = get_worker_by_uuid_mysql(pooled_conn, uuid) {
     worker.state = "disconnected".to_string();
-    update_worker_mysql(pooled_conn, &worker);
+    update_worker_mysql(pooled_conn, &worker).unwrap();
   }
 }
 
@@ -399,7 +465,7 @@ mod tests {
       uuid: "f6b5089d-75ee-4635-a5f2-74401c1d517e".to_string(),
       algo: "argon2d".to_string(),
       time: 1595121619,
-      stratum_id: 2,
+      stratum_id: "2".to_string(),
       mode: "normal".to_string(),
       password: "".to_string(),
       party_pass: "".to_string(),
@@ -410,4 +476,31 @@ mod tests {
       get_account_by_username_mysql(&mysql_pool_conn, &stratum_auth_nim.username).unwrap();
     assert_eq!(account.username, "NQ11DGPGDBTX8H4J23QDL4A2D5DF7PDF9MAL");
   }
+}
+
+#[test]
+fn test_disconnect_worker() {
+  let mysql_pool_conn = establish_mysql_connection().unwrap().get().unwrap();
+  let worker = WorkerMYSQLInsertable {
+    coinid: 1234,
+    userid: 1234,
+    worker: "test_worker".to_string(),
+    hashrate: 0.0,
+    owner_id: 1234,
+    owner_type: "test_type".to_string(),
+    uuid: "test_uuid".to_string(),
+    state: "new".to_string(),
+    ip_address: "192.test".to_string(),
+    version: "test".to_string(),
+    password: "test".to_string(),
+    algo: "test".to_string(),
+    mode: "test".to_string(),
+    stratum_id: "test".to_string(),
+  };
+  insert_worker_mysql(&mysql_pool_conn, worker).unwrap();
+
+  let uuid = "test_uuid".to_string();
+  handle_worker_disconnect(&mysql_pool_conn, &uuid);
+  let worker = get_worker_by_uuid_mysql(&mysql_pool_conn, &uuid).unwrap();
+  assert_eq!(worker.uuid, uuid);
 }

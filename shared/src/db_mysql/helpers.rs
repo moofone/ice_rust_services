@@ -270,10 +270,38 @@ pub mod workers {
 
   // update_worker_by_uuid_mysql(conn, uuid, state)
   // update state using uuid
-  // update account balance
+  pub fn update_worker_by_uuid_mysql(
+    conn: &MysqlConnection,
+    _uuid: &String,
+    _state: &String,
+  ) -> Result<(), Error> {
+    update(workers.filter(uuid.eq(_uuid)))
+      .set((state.eq(_state)))
+      .execute(conn)
+      .map(|_| ())
+  }
+
+  // update worker by full id
   pub fn update_worker_mysql(conn: &MysqlConnection, _worker: &WorkerMYSQL) -> Result<(), Error> {
     update(workers.filter(id.eq(_worker.id)))
       .set((state.eq(&_worker.state), uuid.eq(&_worker.uuid)))
+      .execute(conn)
+      .map(|_| ())
+  }
+}
+
+pub mod stratums {
+  use super::super::{models::StratumMYSQLInsertable, schema::stratums::dsl::*};
+  use diesel::result::Error;
+  use diesel::{insert_into, mysql::MysqlConnection, prelude::*, update};
+
+  // insert_stratum_mysql
+  pub fn insert_stratum_mysql(
+    conn: &MysqlConnection,
+    _stratum: StratumMYSQLInsertable,
+  ) -> Result<(), Error> {
+    insert_into(stratums)
+      .values(&_stratum)
       .execute(conn)
       .map(|_| ())
   }

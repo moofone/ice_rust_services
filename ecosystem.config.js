@@ -6,6 +6,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      time: true,
     },
     {
       name: 'blocks_nats_to_sql',
@@ -13,6 +14,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      time: true,
 
     },
     {
@@ -21,6 +23,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      time: true,
 
     },
     {
@@ -29,8 +32,18 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      time: true,
 
     },
+    // {
+    //   name: 'kda_block_conf',
+    //   script: '/icedev/datahub/services/kda-blockconf/index',
+    //   instances: 1,
+    //   autorestart: true,
+    //   watch: false,
+    //   time: true,
+
+    // },
   ]
 
 

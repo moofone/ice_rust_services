@@ -1,5 +1,5 @@
 use super::schema::{
-  algorithms, blocks, coins, earnings, kdablocks, modes, shares, users, workers,
+  algorithms, blocks, coins, earnings, kdablocks, modes, shares, stratums, users, workers,
 };
 use super::util::unix_timestamp;
 use serde::{Deserialize, Serialize};
@@ -295,8 +295,8 @@ pub struct KDABlockMYSQLInsertable {
 #[derive(Queryable)]
 pub struct WorkerMYSQL {
   pub id: i32,
-  pub coin_id: i16,
-  pub user_id: i32,
+  pub coinid: i16,
+  pub userid: i32,
   pub worker: String,
   pub hashrate: f64,
   pub owner_id: i32,
@@ -308,13 +308,14 @@ pub struct WorkerMYSQL {
   pub password: String,
   pub algo: String,
   pub mode: String,
+  pub stratum_id: String,
 }
 
 #[derive(Insertable)]
 #[table_name = "workers"]
 pub struct WorkerMYSQLInsertable {
-  pub coin_id: i16,
-  pub user_id: i32,
+  pub coinid: i16,
+  pub userid: i32,
   pub worker: String,
   pub hashrate: f64,
   pub owner_id: i32,
@@ -326,6 +327,7 @@ pub struct WorkerMYSQLInsertable {
   pub password: String,
   pub algo: String,
   pub mode: String,
+  pub stratum_id: String,
 }
 
 /// Coin model
@@ -360,4 +362,19 @@ pub struct UserMYSQL {
   pub display_name: String,
   pub email: String,
   pub password: String,
+}
+
+#[derive(Insertable)]
+#[table_name = "stratums"]
+pub struct StratumMYSQLInsertable {
+  pub id: i32,
+  pub time: i32,
+  pub started: i32,
+  pub algo: String,
+  pub workers: i32,
+  pub port: i16,
+  pub symbol: String,
+  pub url: String,
+  pub fds: i32,
+  pub stratum_id: i16,
 }

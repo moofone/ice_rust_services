@@ -91,8 +91,8 @@ table! {
 table! {
   workers(id){
     id -> Int4,
-    coin_id -> Int2,
-    user_id -> Int4,
+    coinid -> Int2,
+    userid -> Int4,
     worker -> Text,
     hashrate -> Double,
     owner_id -> Int4,
@@ -104,6 +104,7 @@ table! {
     password -> Text,
     algo -> Text,
     mode -> Text,
+    stratum_id -> Text,
   }
 }
 
@@ -136,5 +137,20 @@ table! {
     display_name -> Text,
     email -> Text,
     password -> Text,
+  }
+}
+
+table! {
+  stratums(id){
+    id-> Int4,
+    time -> Int4,
+    started -> Int4,
+    algo -> Text,
+    workers -> Int4,
+    port -> Int2,
+    symbol -> Text,
+    url -> Text,
+    fds -> Int4,
+    stratum_id -> Int2,
   }
 }
