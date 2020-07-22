@@ -160,7 +160,7 @@ async fn main() {
     let mut sha = shares_queue.lock().unwrap();
     let mut sco = user_scores_map.lock().unwrap();
     load_shares_from_db(&mut *sha, &mut *sco);
-    rebuild_decayed_map(&mut *sco, &mut *sha)
+    rebuild_decayed_map(&mut *sco, &mut *sha);
   }
 
   // capture_message("DPPLNS loaded shares and is now live", Level::Info);

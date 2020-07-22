@@ -214,7 +214,6 @@ pub struct StratumAuthNatsNIM {
   pub pid: i32,
 }
 
-
 // stratum start
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StratumStartNats {
@@ -257,8 +256,8 @@ pub struct StratumDisconnectNats {
 
 // #[derive(Debug, Serialize, Deserialize)]
 // pub struct Stratum
-/// subscribe model.
-/// TODO
+// subscribe model.
+// TODO
 // #[derive(Debug, Serialize, Deserialize)]
 // pub struct StratumSubcribeNats {
 //   pub ip: String,
