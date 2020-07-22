@@ -187,7 +187,7 @@ async fn main() {
   {
     // for coin in coins {
     // let channel = format!("shares.>");
-    let sub = match nc.subscribe("shares.>") {
+    let sub = match nc.subscribe("shares.2423") {
       Ok(s) => s,
       Err(e) => panic!("Nats sub to shares failed: {}", e),
     };
@@ -254,6 +254,9 @@ async fn main() {
           };
 
           for block in blocks {
+            if block.coin_id != 2423 {
+              continue;
+            }
             // set the block in mysql to unconfirmed, with 0 confirmations
             match update_block_to_processed_mysql(&conn, &block) {
               Ok(_) => (),
