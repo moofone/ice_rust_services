@@ -24,9 +24,11 @@ final goal (ShareMin => min usable data for a share that will go into the queue)
 */
 
 // const DEBUG_MODE: bool = false;
-
 extern crate shared;
 use diesel::prelude::*;
+use dotenv::dotenv;
+use std::env;
+
 use shared::db_mysql::{
   establish_mysql_connection,
   helpers::blocks::{get_blocks_unprocessed_mysql, update_block_to_processed_mysql},
@@ -148,6 +150,9 @@ type EarningMapType = HashMap<i32, f32>;
 
 #[tokio::main]
 async fn main() {
+  dotenv().ok();
+  let env_mode = env::var("ENVIRONMENT_MODE").expect("ENVIRONMENT_MODE not set");
+  println!("Running in mode: {}", &env_mode);
   // let _guard =
   //   sentry::init("https://689607b053ac4fbb81ee82a08a8aa18a@sentry.watlab.icemining.ca/9");
 

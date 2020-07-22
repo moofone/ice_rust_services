@@ -398,6 +398,7 @@ name = "dpplns"
 version = "0.1.0"
 dependencies = [
  "diesel",
+ "dotenv",
  "futures",
  "hashbrown",
  "nats",
@@ -466,6 +467,7 @@ checksum = "699d84875f1b72b4da017e6b0f77dfa88c0137f089958a88974d15938cbc2976"
 name = "event-scheduler"
 version = "0.1.0"
 dependencies = [
+ "dotenv",
  "futures",
  "nats",
  "rmp-serde",

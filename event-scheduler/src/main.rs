@@ -1,15 +1,19 @@
 extern crate shared;
 
 // use sentry::{capture_message, integrations::failure::capture_error, Level};
+use dotenv::dotenv;
 use shared::nats::establish_nats_connection;
+use std::env;
 use tokio::time::{interval_at, Duration, Instant};
-
 // EVENT TIMERS
 const DPPLNS_RUN_INTERVAL: u64 = 10;
 const RTT_TIMER: u64 = 30;
 
 #[tokio::main]
 async fn main() {
+  dotenv().ok();
+  let env_mode = env::var("ENVIRONMENT_MODE").expect("ENVIRONMENT_MODE not set");
+  println!("Running in mode: {}", &env_mode);
   // let _guard =
   //   sentry::init("https://f8ee06fb619843b1ae923d9111d855a9@sentry.watlab.icemining.ca/10");
 

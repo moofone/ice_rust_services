@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time;
 const INSERTINTERVAL: u64 = 1000;
 const DELETEINTERVAL: u64 = 2000;
-const WINDOW_LENGTH: u64 = 24 * 60 * 60;
+const WINDOW_LENGTH: u64 = 2 * 60 * 60;
 
 #[tokio::main]
 async fn main() {
