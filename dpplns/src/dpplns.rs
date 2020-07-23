@@ -338,6 +338,9 @@ fn dpplns(block: &BlockMYSQL, dict: &UserScoreMapType) -> Result<EarningMapType,
   let mut earnings_dict: EarningMapType = HashMap::new();
   // let log = "".to_string();
 
+  let party_pass = block.party_pass.clone().unwrap_or("".to_owned());
+  // let user_id = block.userid.unwrap_or(0);
+
   match block.coin_id {
     2418 => f = 0.04,  // epic
     2426 => f = 0.12,  // atom
@@ -369,10 +372,10 @@ fn dpplns(block: &BlockMYSQL, dict: &UserScoreMapType) -> Result<EarningMapType,
     }
     "party" => {
       let share_payout = (1.0 - f as f32) * block.amount as f32;
-      let party_pass = &block.party_pass;
+      //let party_pass = &block.party_pass;
       //f = PARTY_FEE;
       println!(
-        "Block Party: {} Payout: {}, Fee: {}%",
+        "Block Party: {:?} Payout: {}, Fee: {}%",
         &party_pass, share_payout, f
       );
     }
@@ -384,8 +387,13 @@ fn dpplns(block: &BlockMYSQL, dict: &UserScoreMapType) -> Result<EarningMapType,
         share_payout,
         f * 100.0
       );
-      earnings_dict.insert(block.userid, share_payout);
-      return Ok(earnings_dict);
+      match block.userid {
+        Some(user_id) => {
+          earnings_dict.insert(user_id, share_payout);
+          return Ok(earnings_dict);
+        }
+        None => return Err("Failed solo block. missing userid".to_string()),
+      }
     }
     _ => {
       println!("WHY DIDNT THIS BLOCK HAVE A MODE????");
@@ -393,7 +401,7 @@ fn dpplns(block: &BlockMYSQL, dict: &UserScoreMapType) -> Result<EarningMapType,
   }
 
   // copy proper dict over
-  let key: String = dict_key_gen(&block.mode, block.coin_id, &block.algo, &block.party_pass);
+  let key: String = dict_key_gen(&block.mode, block.coin_id, &block.algo, &party_pass);
   let key_exists = dict.contains_key(&key);
 
   if key_exists == false {
@@ -456,7 +464,7 @@ fn insert_earnings(
       mode: block.mode.clone(),
       stratum_id: 0, //block.stratum_id,
       algo: 0,       //block.algo,
-      party_pass: block.party_pass.to_string(),
+      party_pass: block.party_pass.clone(),
     });
   }
 
