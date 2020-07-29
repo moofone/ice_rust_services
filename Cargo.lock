@@ -404,6 +404,7 @@ dependencies = [
  "nats",
  "rmp-serde",
  "sentry",
+ "serde",
  "shared",
  "tokio",
 ]
@@ -2002,6 +2003,7 @@ dependencies = [
  "nats",
  "rmp-serde",
  "sentry",
+ "serde_json",
  "shared",
  "tokio",
 ]

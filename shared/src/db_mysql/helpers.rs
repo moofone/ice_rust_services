@@ -292,6 +292,17 @@ pub mod workers {
       .execute(conn)
       .map(|_| ())
   }
+
+  // set all workers of stratum_id to disconnected
+  pub fn update_workers_on_stratum_connect_mysql(
+    conn: &MysqlConnection,
+    _stratum_id: &String,
+  ) -> Result<(), Error> {
+    update(workers.filter(stratum_id.eq(_stratum_id)))
+      .set((state.eq("disconnected"),))
+      .execute(conn)
+      .map(|_| ())
+  }
 }
 
 pub mod stratums {

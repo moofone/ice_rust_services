@@ -12,7 +12,7 @@ extern crate chrono_humanize;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShareNats {
-  pub user_id: i32,
+  pub user_id: i32, //owner_id
   pub worker_id: i32,
   pub coin_id: i16,
   pub timestamp: i64,
@@ -240,6 +240,20 @@ pub struct StratumDifficultyNats {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StratumDisconnectNats {
   pub username: String,
+  pub uuid: String,
+}
+
+// stratum model
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumDevfeeNats {
+  pub uuid: String,
+}
+
+// stratum model
+#[derive(Debug, Serialize)]
+pub struct StratumAuthResponseNats {
+  pub owner_id: i32,
+  pub worker_id: i32,
   pub uuid: String,
 }
 

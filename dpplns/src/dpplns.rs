@@ -62,6 +62,8 @@ const TRIM_INTERVAL: u64 = 1 * 15; //s
 const DECAY_INTERVAL: u64 = 60; // s
                                 // Minimum data required to be stored in the queue
                                 // share minified is used to update the hashmap
+const COMPRESSION_LOOKBACK: u64 = 60 * 60 * 100000;
+
 #[derive(Debug, Clone)]
 struct ShareMinified {
   user_id: i32,
@@ -71,6 +73,7 @@ struct ShareMinified {
   share_payout: f32,
   mode: i16,
   party_pass: String,
+  compressed: bool,
   // decay_counter: i16,
 }
 impl ShareMinified {
@@ -112,6 +115,7 @@ impl From<ShareNats> for ShareMinified {
       share_payout: score,
       mode: s.mode,
       party_pass: s.party_pass,
+      compressed: false,
       // decay_counter: 0,
     }
   }
@@ -136,6 +140,7 @@ impl From<SharePg> for ShareMinified {
       share_payout: score,
       mode: s.mode,
       party_pass: s.party_pass,
+      compressed: false,
       // decay_counter: 0,
     }
   }
@@ -164,8 +169,10 @@ async fn main() {
     // lock the shares and scores, load last window from database
     let mut sha = shares_queue.lock().unwrap();
     let mut sco = user_scores_map.lock().unwrap();
-    load_shares_from_db(&mut *sha, &mut *sco);
-    rebuild_decayed_map(&mut *sco, &mut *sha);
+    match load_shares_from_db(&mut *sha, &mut *sco) {
+      Ok(_) => rebuild_decayed_map(&mut *sco, &mut *sha),
+      Err(e) => println!("{}", e),
+    };
   }
 
   // capture_message("DPPLNS loaded shares and is now live", Level::Info);
@@ -547,6 +554,9 @@ fn parse_share(msg: &Vec<u8>) -> Result<ShareMinified, rmp_serde::decode::Error>
 
 // add share to queue and add share to map
 fn handle_share(dict: &mut UserScoreMapType, shares: &mut ShareQueueType, share: ShareMinified) {
+  if share.mode == 1 {
+    return;
+  }
   // // pass reference of the share to map to be updated
   add_share_to_map(dict, &share);
   // move the share to the queue to be added
@@ -576,16 +586,16 @@ fn handle_block(
 fn load_shares_from_db(
   shares_queue: &mut VecDeque<ShareMinified>,
   user_scores_map: &mut UserScoreMapType,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
   // establish PG pool
   let pg_pool = match establish_pg_connection() {
     Ok(p) => p,
-    Err(e) => panic!("PG Pool to load shares failed: {}", e),
+    Err(e) => return Err(format!("PG Pool Connection to load shares failed: {}", e))?,
   };
   // get a pooled connection
   let pg_conn = match pg_pool.get() {
     Ok(p) => p,
-    Err(e) => panic!("PG Pool Connection to load shares failed: {}", e),
+    Err(e) => return Err(format!("PG Pool Connection to load shares failed: {}", e))?,
   };
 
   // get the window time with its steps setup
@@ -624,6 +634,7 @@ fn load_shares_from_db(
     println!("Loaded Shares Processed");
   }
   println!("Total Shares loaded: {}", shares_loaded);
+  Ok(())
   // println!("Queue size {}", shares_queue.len());
   // println!("{:?}", map);
 }
@@ -771,6 +782,51 @@ fn rebuild_decayed_map(map: &mut UserScoreMapType, shares: &mut ShareQueueType) 
   // println!("{:?}", map);
 }
 
+fn compress_shares_queue(shares: &mut ShareQueueType) {
+  // look back n seconds
+  let time_lookback: i32 = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap()
+    .as_secs() as i32
+    - COMPRESSION_LOOKBACK as i32;
+
+  // build map to hold values
+  let mut map = HashMap::new();
+
+  // delete from the front adding to the map
+  let mut time = shares.back().unwrap().time;
+  let mut share: ShareMinified;
+  let mut key;
+
+  while time > time_lookback && shares.len() > 0 {
+    share = shares.pop_back().unwrap();
+    time = share.time;
+
+    key = format!(
+      "{}-{}-{}-{}-{}",
+      share.user_id, share.coin_id, share.algo, share.mode, share.party_pass
+    );
+
+    map
+      .entry(key)
+      .or_insert(ShareMinified {
+        user_id: share.user_id,
+        coin_id: share.coin_id,
+        algo: share.algo,
+        time: share.time,
+        share_payout: 0.0,
+        mode: share.mode,
+        party_pass: share.party_pass,
+        compressed: true,
+      })
+      .share_payout += share.share_payout;
+  }
+  for (_, compressed_share) in map.drain() {
+    shares.push_back(compressed_share);
+  }
+
+  // remove said shares and add them back up
+}
 fn trim_shares_queue(shares: &mut ShareQueueType) {
   let time_current = SystemTime::now()
     .duration_since(UNIX_EPOCH)
@@ -888,21 +944,44 @@ mod tests {
     let mut shares: ShareQueueType = VecDeque::new();
     //TODO make a better list of shares
     // push shares to front with time getting smaller , ends with the oldest time in the front (as it should be)
-    for i in 0..10 {
+    for i in 0..1000000 {
       shares.push_front(ShareMinified {
-        user_id: i,
+        user_id: i % 10000,
         coin_id: 2048,
         algo: 0,
         time: SystemTime::now()
           .duration_since(UNIX_EPOCH)
           .unwrap()
           .as_secs() as i32
-          - i * 45 * 60,
+          - i * 1 * 60,
         share_payout: 10.0,
         mode: 0,
         party_pass: "pass".to_string(),
+        compressed: false,
       })
     }
     shares
+  }
+
+  #[test]
+  fn test_compress_shares_queue() {
+    let mut shares = generate_shares_queue();
+    let time_current_ms = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap()
+      .as_millis();
+    // println!("before: {:?}", shares);
+    compress_shares_queue(&mut shares);
+    // println!("\nafter: {:?}", shares);
+    println!(
+      "Took: {}ms, new length: {}",
+      SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+        - time_current_ms,
+      shares.len(),
+    );
+    // assert_eq!(1, 2);
   }
 }
