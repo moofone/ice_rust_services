@@ -7,5 +7,6 @@ members = [
   "nats_template",
   "shared", 
   "shares-to-pg",
-  "stratum-nats-to-sql"
+  "stratum-nats-to-sql",
+  "share-processor"
 ]

@@ -100,7 +100,7 @@ table! {
     owner_type -> Text,
     uuid -> Text,
     state -> Text,
-    ip_address -> Text,
+    ip -> Text,
     version -> Text,
     password -> Text,
     algo -> Text,

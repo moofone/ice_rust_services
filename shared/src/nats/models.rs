@@ -225,6 +225,7 @@ pub struct StratumStartNats {
   pub port: i16,
   pub symbol: String,
   pub stratum_id: String,
+  pub coin_id: i16,
 }
 
 // stratum difficulty update

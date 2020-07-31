@@ -1870,6 +1870,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "shares-processor"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "futures",
+ "rmp-serde",
+ "serde_json",
+ "shared",
+ "tokio",
+]
+
+[[package]]
 name = "shares-to-pg"
 version = "0.1.0"
 dependencies = [

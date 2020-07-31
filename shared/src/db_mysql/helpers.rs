@@ -230,7 +230,7 @@ pub mod workers {
   use diesel::{insert_into, mysql::MysqlConnection, prelude::*, update};
 
   // get worker by worker name and owner
-  pub fn get_worker_by_worker_name_mysql(
+  pub fn get_disconnected_worker_by_worker_name_mysql(
     conn: &MysqlConnection,
     _owner_id: i32,
     _owner_type: &String,
@@ -240,7 +240,13 @@ pub mod workers {
       .filter(owner_id.eq(_owner_id))
       .filter(owner_type.eq(_owner_type))
       .filter(worker.eq(_worker))
+      .filter(state.eq("disconnected").or(state.eq("devfee")))
       .first::<WorkerMYSQL>(conn)
+    // println!(
+    //   "query: {}",
+    //   diesel::debug_query::<diesel::mysql::Mysql, _>(&query)
+    // );
+    // query.first::<WorkerMYSQL>(conn)
   }
 
   // get worker by uuid
@@ -293,15 +299,31 @@ pub mod workers {
       .map(|_| ())
   }
 
+  pub fn update_worker_hashrate(
+    conn: &MysqlConnection,
+    _id: i32,
+    _hashrate: f64,
+  ) -> Result<(), Error> {
+    update(workers.filter(id.eq(_id)))
+      .set(hashrate.eq(_hashrate))
+      .execute(conn)
+      .map(|_| ())
+  }
+
   // set all workers of stratum_id to disconnected
   pub fn update_workers_on_stratum_connect_mysql(
     conn: &MysqlConnection,
     _stratum_id: &String,
+    _coin_id: i16,
   ) -> Result<(), Error> {
-    update(workers.filter(stratum_id.eq(_stratum_id)))
-      .set((state.eq("disconnected"),))
-      .execute(conn)
-      .map(|_| ())
+    update(
+      workers
+        .filter(stratum_id.eq(_stratum_id))
+        .filter(coinid.eq(_coin_id)),
+    )
+    .set(state.eq("disconnected"))
+    .execute(conn)
+    .map(|_| ())
   }
 }
 
