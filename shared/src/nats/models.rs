@@ -209,7 +209,6 @@ pub struct StratumAuthNatsNIM {
   pub time: i32,
   pub stratum_id: String,
   pub mode: String,
-  pub password: String,
   pub party_pass: String,
   pub pid: i32,
 }

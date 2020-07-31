@@ -310,6 +310,9 @@ pub struct WorkerMYSQL {
   pub algo: String,
   pub mode: String,
   pub stratum_id: String,
+  pub time: Option<i32>,
+  pub pid: Option<i32>,
+  pub name: Option<String>,
 }
 
 #[derive(Insertable)]
@@ -330,6 +333,9 @@ pub struct WorkerMYSQLInsertable {
   pub mode: String,
   pub stratum_id: String,
   pub difficulty: f64,
+  pub time: i32,
+  pub pid: i32,
+  pub name: String,
 }
 
 /// Coin model

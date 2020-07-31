@@ -106,6 +106,9 @@ table! {
     algo -> Text,
     mode -> Text,
     stratum_id -> Text,
+    time -> Nullable<Int4>,
+    pid -> Nullable<Int4>,
+    name -> Nullable<Text>,
   }
 }
 

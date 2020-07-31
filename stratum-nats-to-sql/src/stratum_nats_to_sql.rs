@@ -243,7 +243,7 @@ fn stratum_difficulty_listener(
     let mysql_pool = mysql_pool.clone();
 
     for msg in sub.messages() {
-      println!("Msg: {}", msg.subject);
+      // println!("Msg: {}", msg.subject);
       let stratum_difficulty_nats = parse_msg_difficulty(&msg.data).unwrap();
 
       // grab a mysql pool connection
@@ -364,7 +364,7 @@ fn parse_msg_difficulty(msg: &Vec<u8>) -> Result<StratumDifficultyNats, rmp_serd
     Ok(difficulty) => difficulty,
     Err(e) => panic!("Error parsing Startum difficulty nats. e: {}", e),
   };
-  println!("stratum difficulty nats nim : {:?}", difficulty);
+  // println!("stratum difficulty nats nim : {:?}", difficulty);
   Ok(difficulty)
 }
 fn parse_msg_disconnect(msg: &Vec<u8>) -> Result<StratumDisconnectNats, rmp_serde::decode::Error> {
@@ -380,7 +380,7 @@ fn parse_msg_devfee(msg: &Vec<u8>) -> Result<StratumDevfeeNats, rmp_serde::decod
     Ok(devfee) => devfee,
     Err(e) => panic!("Error parsing Startum devfee nats. e: {}", e),
   };
-  println!("stratum devfee nats nim : {:?}", devfee);
+  // println!("stratum devfee nats nim : {:?}", devfee);
   Ok(devfee)
 }
 
@@ -420,6 +420,10 @@ fn insert_or_update_worker(
   account: &GenericAccount,
   new_msg: &StratumAuthNatsNIM,
 ) -> Result<WorkerMYSQL, Box<dyn std::error::Error>> {
+  // println!(
+  //   "gen account: {}, {}, {}",
+  //   account.owner_id, account.owner_type, new_msg.worker_name
+  // );
   if new_msg.worker_name.len() > 0 {
     if let Ok(mut worker) = get_disconnected_worker_by_worker_name_mysql(
       pooled_conn,
@@ -427,6 +431,7 @@ fn insert_or_update_worker(
       &account.owner_type,
       &new_msg.worker_name,
     ) {
+      // println!("worker: {:?}", worker.id);
       if worker.state != "connected" && worker.state != "active" {
         worker.state = "connected".to_string();
         worker.uuid = new_msg.uuid.to_string();
@@ -449,16 +454,19 @@ fn insert_or_update_worker(
     state: "connected".to_string(),
     ip: new_msg.ip.to_string(),
     version: new_msg.version.to_string(),
-    password: new_msg.password.to_string(),
+    password: new_msg.consensus_mode.to_string(),
     algo: new_msg.algo.to_string(),
     mode: new_msg.mode.to_string(),
     stratum_id: new_msg.stratum_id.to_string(),
+    time: new_msg.time,
+    pid: new_msg.pid,
+    name: new_msg.username.to_string(),
   };
   let new_worker = match insert_worker_mysql(pooled_conn, worker) {
     Ok(w) => w,
     Err(e) => return Err(format!("Failed to insert worker. e: {}", e))?,
   };
-  println!("Inserting new worker: {}", new_worker.worker);
+  // println!("Inserting new worker: {}", new_worker.worker);
   Ok(new_worker)
 }
 
