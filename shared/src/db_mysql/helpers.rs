@@ -227,7 +227,7 @@ pub mod workers {
     schema::workers::dsl::*,
   };
   use diesel::result::Error;
-  use diesel::{insert_into, mysql::MysqlConnection, prelude::*, update};
+  use diesel::{delete, insert_into, mysql::MysqlConnection, prelude::*, update};
 
   // get worker by worker name and owner
   pub fn get_disconnected_worker_by_worker_name_mysql(
@@ -322,6 +322,22 @@ pub mod workers {
         .filter(coinid.eq(_coin_id)),
     )
     .set(state.eq("disconnected"))
+    .execute(conn)
+    .map(|_| ())
+  }
+
+  // delete stale workers
+  pub fn delete_stale_workers_mysql(
+    conn: &MysqlConnection,
+    _coin_id: i16,
+    _time: i32,
+  ) -> Result<(), Error> {
+    delete(
+      workers
+        .filter(time.lt(_time))
+        .filter(coinid.eq(_coin_id))
+        .filter(state.eq("disconnected").or(state.eq("devfee"))),
+    )
     .execute(conn)
     .map(|_| ())
   }

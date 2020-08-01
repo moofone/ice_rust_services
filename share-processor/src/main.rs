@@ -107,7 +107,7 @@ use dotenv::dotenv;
 use futures::join;
 use shared::db_mysql::{
   establish_mysql_connection,
-  helpers::workers::{update_worker_hashrate, update_worker_mysql},
+  helpers::workers::{delete_stale_workers_mysql, update_worker_hashrate, update_worker_mysql},
   models::WorkerMYSQL,
   MysqlPool,
 };
@@ -226,76 +226,15 @@ async fn main() {
   //-----------------------CALC RAW WORKER HASHRATE INTERVAL --------------------------------
   let _calc_raw_hashrate = calc_raw_hashrate(&mut shares_queue, &mysql_pool);
 
-  join!(_share_listener, _trim_queue, _calc_raw_hashrate);
-  // // loads shares into the queue when received
-  // // shares are stored in a HashMap for that worker
-  // // key is in the form of coinid-algo-user_id-worker_name
-  // {
-  //   for coin in coins {
-  //     // setup nats channel
-  //     let channel = format!("shares.{}", coin.to_string());
-  //     let sub = nc.subscribe(&channel).unwrap();
-  //     // prep queue to be used in a thread
-  //     let shares = shares.clone();
-  //     //let worker_dict = worker_dict.clone();
+  //-----------------------CALC RAW WORKER HASHRATE INTERVAL --------------------------------
+  let _trim_disconnected_workers_listener = trim_disconnected_workers(&mysql_pool);
 
-  //     // spawn a thread for this channel to listen to shares
-  //     let share_task = tokio::spawn(async move {
-  //       let mut interval = time::interval(Duration::from_millis(50));
-  //       loop {
-  //         // check if a share is ready
-  //         if let Some(msg) = sub.try_next() {
-  //           // prase the share, loc the queue, and add it
-  //           let share = parse_share(&msg.data);
-  //           let mut sha = shares.lock().unwrap();
-  //           //let mut dict = worker_dict.lock().unwrap();
-  //           handle_share(
-  //             //&mut *dict,
-  //             &mut *sha, share,
-  //           );
-  //         // shares.push_back(share);
-  //         } else {
-  //           interval.tick().await;
-  //         }
-  //       }
-  //     });
-  //     tasks.push(share_task);
-  //   }
-  // }
-
-  // //-----------------------PROCESS HASHRATES--------------------------------
-  // // build a HashMap of workers from the queue
-  // //
-  // {
-  //   let shares = shares.clone();
-
-  //   // spawn a thread for this channel to listen to shares
-  //   let process_task = tokio::spawn(async move {
-  //     let mut interval = time::interval(Duration::from_millis(50));
-  //     loop {
-  //       interval.tick().await;
-
-  //       // createa  hashmap to hold workers
-  //       let mut worker_dict = WorkerDict::new();
-  //       let shares = shares.lock().unwrap();
-
-  //       // add each share from the queue to the worker dict
-  //       for share in shares.iter() {
-  //         update_dict_with_new_share(&mut worker_dict, &share);
-  //       }
-
-  //       // prcess hashrates
-  //       for (_, worker) in worker_dict.iter_mut() {
-  //         // *worker.hashrate = worker.calc_hashrate();
-  //       }
-  //     }
-  //   });
-  //   tasks.push(process_task);
-  // }
-
-  // for handle in tasks {
-  //   handle.await.unwrap();
-  // }
+  join!(
+    _share_listener,
+    _trim_queue,
+    _calc_raw_hashrate,
+    _trim_disconnected_workers_listener,
+  );
 }
 
 // listen for shares and push to queue
@@ -323,9 +262,10 @@ fn share_listener(
     for msg in sub.messages() {
       // println!("share: {}", msg.subject);
       // parse the share into a minified object, then push it to the queue
-      let share = parse_share_msg_into_minified(&msg.data).unwrap();
-      let mut shares_queue = shares_queue.lock().unwrap();
-      shares_queue.push_back(share);
+      if let Ok(share) = parse_share_msg_into_minified(&msg.data) {
+        let mut shares_queue = shares_queue.lock().unwrap();
+        shares_queue.push_back(share);
+      }
     }
   })
 }
@@ -371,12 +311,47 @@ fn trim_queue(shares_queue: &ShareQueueArc) -> tokio::task::JoinHandle<()> {
     }
   })
 }
+
+fn trim_disconnected_workers(mysql_pool: &MysqlPool) -> tokio::task::JoinHandle<()> {
+  let mysql_pool = mysql_pool.clone();
+  tokio::task::spawn(async move {
+    let mut interval = interval_at(
+      Instant::now() + Duration::from_millis(TRIM_INTERVAL * 1000),
+      Duration::from_millis(TRIM_INTERVAL * 1000),
+    );
+
+    loop {
+      interval.tick().await;
+
+      let conn = match mysql_pool.get() {
+        Ok(conn) => conn,
+        Err(e) => {
+          // crash and sentry BIG ISSUE
+          println!("Error mysql conn. e: {}", e);
+          continue;
+          // panic!("error getting mysql connection e: {}",);
+        }
+      };
+      let lookback_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        - 60 * 60 * 2;
+      delete_stale_workers_mysql(&conn, 2423, lookback_time as i32);
+      delete_stale_workers_mysql(&conn, 2408, lookback_time as i32);
+    }
+  })
+}
+
 fn parse_share_msg_into_minified(
   msg: &Vec<u8>,
 ) -> Result<ShareQueueMinifiedObj, rmp_serde::decode::Error> {
   let share: ShareNats = match rmp_serde::from_read_ref(&msg) {
     Ok(share) => share,
-    Err(e) => panic!("Error parsing share. e: {}", e),
+    Err(e) => {
+      println!("Error parsing share. e: {}", e);
+      return Err(e);
+    }
   };
   Ok(ShareQueueMinifiedObj::from(share))
 }
@@ -426,12 +401,24 @@ fn calc_raw_hashrate(
         worker.difficulty += share.difficulty;
       }
 
+      let mut counter = 0;
       for mut worker in worker_dict.values_mut() {
         worker.hashrate = worker.difficulty * 1000.0 / 300.0 / 1000.0;
         update_worker_hashrate(&conn, worker.worker_id, worker.hashrate).unwrap();
-      }
-      println!("Done updating");
+        if worker.user_id == 56886 {
+          println!("FOUND IT");
+        }
 
+        if counter < 10 {
+          println!(
+            "user_id: {}, hashrate: {}, ",
+            worker.user_id, worker.hashrate
+          );
+          counter += 1;
+        }
+      }
+      println!("Done updating, map size: {}", worker_dict.len());
+      // println!("Worker 1: {}", worker_dict.get();
       // println!("worker dict: {:?}", worker_dict.keys());
     }
   })

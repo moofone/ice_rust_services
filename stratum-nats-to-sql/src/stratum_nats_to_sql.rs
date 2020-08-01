@@ -466,7 +466,7 @@ fn insert_or_update_worker(
     Ok(w) => w,
     Err(e) => return Err(format!("Failed to insert worker. e: {}", e))?,
   };
-  // println!("Inserting new worker: {}", new_worker.worker);
+  println!("Inserting new worker: {}", new_worker.worker);
   Ok(new_worker)
 }
 
