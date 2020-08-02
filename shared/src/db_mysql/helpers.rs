@@ -294,6 +294,7 @@ pub mod workers {
         state.eq(&_worker.state),
         uuid.eq(&_worker.uuid),
         difficulty.eq(&_worker.difficulty),
+        time.eq(&_worker.time),
       ))
       .execute(conn)
       .map(|_| ())
@@ -302,10 +303,18 @@ pub mod workers {
   pub fn update_worker_hashrate(
     conn: &MysqlConnection,
     _id: i32,
+    _last_share_time: i32,
+    _shares_per_min: f64,
     _hashrate: f64,
+    _difficulty: f64,
   ) -> Result<(), Error> {
     update(workers.filter(id.eq(_id)))
-      .set(hashrate.eq(_hashrate))
+      .set((
+        hashrate.eq(_hashrate),
+        last_share_time.eq(_last_share_time),
+        shares_per_min.eq(_shares_per_min),
+        difficulty.eq(_difficulty),
+      ))
       .execute(conn)
       .map(|_| ())
   }
@@ -355,6 +364,17 @@ pub mod stratums {
   ) -> Result<(), Error> {
     insert_into(stratums)
       .values(_stratum)
+      .execute(conn)
+      .map(|_| ())
+  }
+  // insert_stratum_mysql
+  pub fn update_stratum_by_pid_mysql(
+    conn: &MysqlConnection,
+    _pid: i32,
+    _time: i32,
+  ) -> Result<(), Error> {
+    update(stratums.filter(pid.eq(_pid)))
+      .set(time.eq(_time))
       .execute(conn)
       .map(|_| ())
   }

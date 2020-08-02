@@ -227,6 +227,15 @@ pub struct StratumStartNats {
   pub coin_id: i16,
 }
 
+// stratum heartbeat
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumHeartbeatNats {
+  pub pid: i32,
+  pub time: i32,
+  pub stratum_id: String,
+  pub coin_id: i16,
+}
+
 // stratum difficulty update
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StratumDifficultyNats {

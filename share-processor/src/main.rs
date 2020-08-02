@@ -120,7 +120,7 @@ use std::env;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time;
-const TRIM_INTERVAL: u64 = 1 * 5; //s
+const TRIM_INTERVAL: u64 = 1; //s
 use tokio::time::{interval_at, Duration, Instant};
 const WINDOW_LENGTH: u64 = 60 * 5; //s
 const HASHRATE_INTERVAL: u64 = 1 * 15; //s
@@ -133,13 +133,27 @@ struct ShareQueueMinifiedObj {
   worker_name: String,
   difficulty: f64,
 }
+impl From<ShareNats> for ShareQueueMinifiedObj {
+  fn from(s: ShareNats) -> Self {
+    ShareQueueMinifiedObj {
+      user_id: s.user_id,
+      timestamp: s.timestamp,
+      algo: "nim".to_string(), //Algos::from_i16(s.algo),
+      worker_id: s.worker_id,
+      coin_id: s.coin_id,
+      worker_name: "".to_string(), // s.worker_name,
+      difficulty: s.difficulty,
+    }
+  }
+}
 
 #[derive(Debug)]
 struct WorkerDictObj {
   worker_id: i32,
   start_time: i64,
-  end_time: i64,
+  last_share_time: i64,
   count: i16,
+  difficulty_sum: f64,
   difficulty: f64,
   worker_name: String,
   user_id: i32,
@@ -147,6 +161,7 @@ struct WorkerDictObj {
   algo: String,
   coin_id: i16,
   hashrate: f64,
+  shares_per_min: f64,
 }
 // impl WorkerDictObj {
 //   fn calc_hashrate(self) -> f64 {
@@ -175,19 +190,6 @@ struct WorkerDictObj {
 //     }
 //   }
 // }
-impl From<ShareNats> for ShareQueueMinifiedObj {
-  fn from(s: ShareNats) -> Self {
-    ShareQueueMinifiedObj {
-      user_id: s.user_id,
-      timestamp: s.timestamp,
-      algo: "nim".to_string(), //Algos::from_i16(s.algo),
-      worker_id: s.worker_id,
-      coin_id: s.coin_id,
-      worker_name: "".to_string(), // s.worker_name,
-      difficulty: s.difficulty,
-    }
-  }
-}
 
 type ShareQueueType = VecDeque<ShareQueueMinifiedObj>;
 type WorkerDict = HashMap<i32, WorkerDictObj>;
@@ -246,7 +248,7 @@ fn share_listener(
   // connect to the nats channel
   let subject;
   if env == "dev" {
-    subject = format!("shares.>");
+    subject = format!("dev.shares.>");
   } else {
     subject = format!("shares.>");
   }
@@ -260,7 +262,7 @@ fn share_listener(
   let shares_queue = shares_queue.clone();
   tokio::task::spawn(async move {
     for msg in sub.messages() {
-      // println!("share: {}", msg.subject);
+      println!("share: {}", msg.subject);
       // parse the share into a minified object, then push it to the queue
       if let Ok(share) = parse_share_msg_into_minified(&msg.data) {
         let mut shares_queue = shares_queue.lock().unwrap();
@@ -290,7 +292,8 @@ fn trim_queue(shares_queue: &ShareQueueArc) -> tokio::task::JoinHandle<()> {
 
       // trim the queue first to avoid adding shares we dont want
       if shares.len() < 1 {
-        break;
+        println!("shares queue empty, nothign to trim");
+        continue;
       }
       let mut time = shares.front().unwrap().timestamp;
       let mut share: ShareQueueMinifiedObj;
@@ -312,6 +315,7 @@ fn trim_queue(shares_queue: &ShareQueueArc) -> tokio::task::JoinHandle<()> {
   })
 }
 
+// move to database-maintenance
 fn trim_disconnected_workers(mysql_pool: &MysqlPool) -> tokio::task::JoinHandle<()> {
   let mysql_pool = mysql_pool.clone();
   tokio::task::spawn(async move {
@@ -387,35 +391,36 @@ fn calc_raw_hashrate(
         let worker = worker_dict.entry(share.worker_id).or_insert(WorkerDictObj {
           worker_id: share.worker_id,
           start_time: share.timestamp,
-          end_time: share.timestamp,
+          last_share_time: share.timestamp,
           count: 1,
+          difficulty_sum: share.difficulty,
           difficulty: share.difficulty,
           worker_name: share.worker_name.clone(),
           user_id: share.user_id,
           algo: "nim".to_string(),
           coin_id: share.coin_id,
           hashrate: 0.0,
+          shares_per_min: 0.0,
         });
         worker.count += 1;
-        worker.end_time = share.timestamp;
-        worker.difficulty += share.difficulty;
+        worker.last_share_time = share.timestamp;
+        worker.difficulty_sum += share.difficulty;
+        worker.difficulty = share.difficulty;
       }
 
       let mut counter = 0;
       for mut worker in worker_dict.values_mut() {
-        worker.hashrate = worker.difficulty * 1000.0 / 300.0 / 1000.0;
-        update_worker_hashrate(&conn, worker.worker_id, worker.hashrate).unwrap();
-        if worker.user_id == 56886 {
-          println!("FOUND IT");
-        }
-
-        if counter < 10 {
-          println!(
-            "user_id: {}, hashrate: {}, ",
-            worker.user_id, worker.hashrate
-          );
-          counter += 1;
-        }
+        worker.hashrate = worker.difficulty_sum * 65536000.0 / WINDOW_LENGTH as f64 / 1000.0;
+        worker.shares_per_min = worker.count as f64 / (WINDOW_LENGTH as f64 / 60.0);
+        update_worker_hashrate(
+          &conn,
+          worker.worker_id,
+          worker.last_share_time as i32,
+          worker.shares_per_min,
+          worker.hashrate,
+          worker.difficulty,
+        )
+        .unwrap();
       }
       println!("Done updating, map size: {}", worker_dict.len());
       // println!("Worker 1: {}", worker_dict.get();

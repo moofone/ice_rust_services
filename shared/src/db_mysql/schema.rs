@@ -109,6 +109,8 @@ table! {
     time -> Nullable<Int4>,
     pid -> Nullable<Int4>,
     name -> Nullable<Text>,
+    last_share_time -> Nullable<Int4>,
+    shares_per_min -> Nullable<Double>,
   }
 }
 

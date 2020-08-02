@@ -343,6 +343,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72aa14c04dfae8dd7d8a2b1cb7ca2152618cd01336dbfe704b8dcbf8d41dbd69"
 
 [[package]]
+name = "database-maintenance"
+version = "0.1.0"
+dependencies = [
+ "diesel",
+ "dotenv",
+ "futures",
+ "rmp-serde",
+ "serde_json",
+ "shared",
+ "tokio",
+]
+
+[[package]]
 name = "debugid"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
