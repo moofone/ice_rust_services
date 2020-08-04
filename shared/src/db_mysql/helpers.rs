@@ -371,12 +371,20 @@ pub mod stratums {
   pub fn update_stratum_by_pid_mysql(
     conn: &MysqlConnection,
     _pid: i32,
+    _stratum_id: &String,
+    _symbol: &String,
     _time: i32,
+    _worker_count: i32,
   ) -> Result<(), Error> {
-    update(stratums.filter(pid.eq(_pid)))
-      .set(time.eq(_time))
-      .execute(conn)
-      .map(|_| ())
+    update(
+      stratums
+        .filter(pid.eq(_pid))
+        .filter(stratum_id.eq(_stratum_id))
+        .filter(symbol.eq(_symbol)),
+    )
+    .set((time.eq(_time), workers.eq(_worker_count)))
+    .execute(conn)
+    .map(|_| ())
   }
 }
 

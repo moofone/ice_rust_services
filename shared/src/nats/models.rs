@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
-
 //toodo mo to utils
 extern crate chrono;
 extern crate chrono_humanize;
@@ -10,6 +10,7 @@ extern crate chrono_humanize;
 
 // use std::collections::HashMap;
 
+//TODO rename algo and mode to _id
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShareNats {
   pub user_id: i32, //owner_id
@@ -105,6 +106,7 @@ impl Display for ShareNats {
   }
 }
 
+//TODO rename to add _ to userid and workerid
 /// DPPLNS Block model.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DPPLNSBlockNats {
@@ -126,6 +128,7 @@ pub struct DPPLNSBlockNats {
   pub party_pass: String,
 }
 
+//TODO rename to add _ to userid and workerid
 /// Block model.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BlockNats {
@@ -148,6 +151,7 @@ pub struct BlockNats {
   pub shares: i64,
 }
 
+//TODO rename to add _ to userid and workerid
 /// Block model.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KDABlockNats {
@@ -231,9 +235,9 @@ pub struct StratumStartNats {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StratumHeartbeatNats {
   pub pid: i32,
-  pub time: i32,
   pub stratum_id: String,
-  pub coin_id: i16,
+  pub symbol: String,
+  pub worker_count: i32,
 }
 
 // stratum difficulty update
@@ -266,6 +270,19 @@ pub struct StratumAuthResponseNats {
   pub uuid: String,
 }
 
+// stratum model
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShareProcessorConfigNats {
+  pub config: ShareProcessorHashMap,
+}
+
+pub type ShareProcessorHashMap = HashMap<String, ShareProcessorConfigObj>;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ShareProcessorConfigObj {
+  pub window_length: u32,
+  pub algo_target: u32,
+}
 // /// Auth model.
 // #[derive(Debug, Serialize, Deserialize)]
 // pub struct StratumAuthNats {
