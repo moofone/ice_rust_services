@@ -25,7 +25,7 @@ fn loop_1(items: ArcVecDeque) -> task::JoinHandle<()> {
       let mut items = items.lock().unwrap();
       // do somethign to items
       items.push_back(5);
-      println!("Inside loop 1. pushed: 5");
+      println!("SERVER 1Inside loop 1. pushed: 5");
       // std::process::exit(1);
     }
   })
