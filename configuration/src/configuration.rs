@@ -3,6 +3,10 @@
   This service will interface with mysql cluster to supply this configuration.
   This way we have the configuration in a highly available fashion, and avoids dilicate data 
 
+  TODO
+  - need to load in share processor data
+    - needs window time per coin-algo combo
+    - needs difficulty per algo
 **/
 use sentry::{capture_message, integrations::failure::capture_error, Level};
 

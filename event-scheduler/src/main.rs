@@ -1,3 +1,13 @@
+/*
+TODO
+  - split up into modules based on service
+    - dpplns
+    - database maintenance? maybe?
+    - share-processor
+      - add in event to fire off workers scalars
+
+*/
+
 extern crate shared;
 
 // use sentry::{capture_message, integrations::failure::capture_error, Level};
