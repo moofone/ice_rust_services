@@ -1,5 +1,6 @@
 extern crate shared;
 use diesel::prelude::*;
+use futures::join;
 use shared::db_mysql::{
   helpers::workers::{get_worker_by_uuid_mysql, update_worker_mysql},
   MysqlPool,
@@ -7,6 +8,11 @@ use shared::db_mysql::{
 use shared::nats::models::{StratumDevfeeNats, StratumDisconnectNats};
 use shared::nats::NatsConnection;
 
+pub async fn run_listeners(env: &String, mysql_pool: &MysqlPool, nc: &NatsConnection) {
+  let dc = stratum_disconnect_listener(env, mysql_pool, nc);
+  let devfee = stratum_devfee_listener(env, mysql_pool, nc);
+  join!(dc, devfee);
+}
 pub fn stratum_disconnect_listener(
   env: &String,
   mysql_pool: &MysqlPool,
@@ -69,7 +75,7 @@ pub fn stratum_devfee_listener(
     let mysql_pool = mysql_pool.clone();
 
     for msg in sub.messages() {
-      println!("Msg: {}", msg.subject);
+      // println!("Msg: {}", msg.subject);
       let stratum_devfee_nats = parse_msg_devfee(&msg.data).unwrap();
 
       // grab a mysql pool connection

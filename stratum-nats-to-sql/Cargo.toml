@@ -6,11 +6,6 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[bin]]
-name = "stratum-nats-to-sql"
-path = "src/stratum_nats_to_sql.rs"
-
-
 [dependencies]
 futures = "0.3.5"
 tokio = { version = "0.2", features = ["full"] }

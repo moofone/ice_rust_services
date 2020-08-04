@@ -1,4 +1,5 @@
 use diesel::prelude::*;
+use futures::join;
 use shared::db_mysql::{
   helpers::accounts::{get_account_by_username_mysql, insert_account_mysql},
   helpers::workers::{
@@ -15,6 +16,11 @@ struct GenericAccount {
   pub owner_id: i32,
   pub owner_type: String,
   pub coin_id: i32,
+}
+
+pub async fn run_listeners(env: &String, mysql_pool: &MysqlPool, nc: &NatsConnection) {
+  let auth = stratum_auth_listener(env, mysql_pool, nc);
+  join!(auth);
 }
 pub fn stratum_auth_listener(
   env: &String,
@@ -50,7 +56,7 @@ pub fn stratum_auth_listener(
         }
       };
       tokio::task::spawn(async move {
-        println!("Msg: {}", msg.subject);
+        // println!("Msg: {}", msg.subject);
 
         // grab a mysql pool connection
         let conn = match mysql_pool.get() {
@@ -66,15 +72,33 @@ pub fn stratum_auth_listener(
         let gen_account = get_or_insert_account_nim(&conn, &stratum_auth_nats_nim);
 
         // insert or update the worker
-        let worker = insert_or_update_worker(&conn, &gen_account, &stratum_auth_nats_nim).unwrap();
-
-        let nats_response = StratumAuthResponseNats {
-          owner_id: gen_account.owner_id,
-          worker_id: worker.id,
-          uuid: worker.uuid,
-        };
-        let response = rmp_serde::to_vec_named(&nats_response).unwrap();
-        msg.respond(&response).unwrap();
+        match insert_or_update_worker(&conn, &gen_account, &stratum_auth_nats_nim) {
+          Ok(worker) => {
+            let nats_response = StratumAuthResponseNats {
+              owner_id: gen_account.owner_id,
+              worker_id: worker.id,
+              uuid: worker.uuid,
+            };
+            // println!(
+            //   "nats response: {} - {} - {}",
+            //   nats_response.owner_id,
+            //   nats_response.worker_id,
+            //   nats_response.uuid.len()
+            // );
+            let response = rmp_serde::to_vec_named(&nats_response).unwrap();
+            match msg.respond(&response) {
+              Ok(_) => (),
+              Err(e) => println!("Failed to send response: {}", e),
+            }
+          }
+          Err(e) => {
+            println!("Error inserting worker: {}", e);
+          }
+        }
+        // let worker = match insert_or_update_worker(&conn, &gen_account, &stratum_auth_nats_nim){
+        //   Ok(w)=> w,
+        //   Err(e)=> println!("insert or update worker failed: {}",e)
+        // };
       });
     }
   })
@@ -142,8 +166,16 @@ fn insert_or_update_worker(
         worker.state = "connected".to_string();
         worker.uuid = new_msg.uuid.to_string();
         worker.time = Some(new_msg.time);
-        println!("Updating worker: {}", worker.worker);
-        update_worker_mysql(pooled_conn, &worker).unwrap();
+        worker.pid = Some(new_msg.pid);
+        worker.stratum_id = new_msg.stratum_id.to_string();
+        // println!("Updating worker: {}", worker.worker);
+        match update_worker_mysql(pooled_conn, &worker) {
+          Ok(w) => w,
+          Err(e) => {
+            println!("Failed to update worker. e: {}", e);
+            return Err(format!("Failed to update worker. e: {}", e))?;
+          }
+        }
         return Ok(worker);
         // Ok(worker);
       }
@@ -173,8 +205,11 @@ fn insert_or_update_worker(
   };
   let new_worker = match insert_worker_mysql(pooled_conn, worker) {
     Ok(w) => w,
-    Err(e) => return Err(format!("Failed to insert worker. e: {}", e))?,
+    Err(e) => {
+      println!("Failed to insert worker. e: {}", e);
+      return Err(format!("Failed to insert worker. e: {}", e))?;
+    }
   };
-  println!("Inserting new worker: {}", new_worker.worker);
+  // println!("Inserting new worker: {}", new_worker.worker);
   Ok(new_worker)
 }

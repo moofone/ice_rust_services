@@ -1,6 +1,7 @@
 extern crate shared;
 
 use diesel::prelude::*;
+use futures::join;
 use shared::db_mysql::{
   helpers::stratums::{insert_stratum_mysql, update_stratum_by_pid_mysql},
   helpers::workers::update_workers_on_stratum_connect_mysql,
@@ -9,6 +10,13 @@ use shared::db_mysql::{
 };
 use shared::nats::models::{StratumHeartbeatNats, StratumStartNats};
 use shared::nats::NatsConnection;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub async fn run_listeners(env: &String, mysql_pool: &MysqlPool, nc: &NatsConnection) {
+  let start = stratum_start_listener(env, mysql_pool, nc);
+  let heartbeat = stratum_heartbeat_listener(env, mysql_pool, nc);
+  join!(start, heartbeat);
+}
 pub fn stratum_start_listener(
   env: &String,
   mysql_pool: &MysqlPool,
@@ -101,7 +109,7 @@ fn parse_msg_heartbeat(msg: &Vec<u8>) -> Result<StratumHeartbeatNats, rmp_serde:
     Ok(heartbeat) => heartbeat,
     Err(e) => panic!("Error parsing Startum heartbeat nats. e: {}", e),
   };
-  println!("stratum start nats nim : {:?}", heartbeat);
+  println!("stratum heartbeat nats nim : {:?}", heartbeat);
   Ok(heartbeat)
 }
 
@@ -113,7 +121,7 @@ fn handle_stratum_start(pooled_conn: &MysqlConnection, new_msg: &StratumStartNat
     algo: new_msg.algo.to_string(),
     workers: 0,
     port: new_msg.port,
-    symbol: new_msg.algo.to_string(),
+    symbol: new_msg.symbol.to_string(),
     stratum_id: new_msg.stratum_id.to_string(),
   };
   match insert_stratum_mysql(pooled_conn, &stratum_row) {
@@ -139,11 +147,22 @@ fn handle_stratum_heartbeat(pooled_conn: &MysqlConnection, new_msg: &StratumHear
   //   Ok(_) => (),
   //   Err(err) => println!("Error: {}", err),
   // };
-  match update_stratum_by_pid_mysql(pooled_conn, new_msg.pid, new_msg.time) {
+  let heartbeat_time = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap()
+    .as_secs() as i32;
+  match update_stratum_by_pid_mysql(
+    pooled_conn,
+    new_msg.pid,
+    &new_msg.stratum_id,
+    &new_msg.symbol,
+    heartbeat_time,
+    new_msg.worker_count,
+  ) {
     Ok(_) => (),
     Err(e) => println!(
-      "Failed to update stratum with heartbeat of pid: {}",
-      new_msg.pid
+      "Failed to update stratum with heartbeat of pid: {}, e: {}",
+      new_msg.pid, e
     ),
   }
   // update_workers_on_stratum_connect_mysql(pooled_conn, &stratum_row.stratum_id, new_msg.coin_id)
