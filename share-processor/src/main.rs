@@ -144,47 +144,50 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time;
 const TRIM_INTERVAL: u64 = 1; //s
 use tokio::time::{interval_at, Duration, Instant};
+mod worker_scalar;
+
 const WINDOW_LENGTH: u64 = 60 * 5; //s
 const HASHRATE_INTERVAL: u64 = 1 * 15; //s
-struct ShareQueueMinifiedObj {
-  user_id: i32,
-  timestamp: i64,
-  algo: String,
-  worker_id: i32,
-  coin_id: i16,
-  worker_name: String,
-  difficulty: f64,
-}
-impl From<ShareNats> for ShareQueueMinifiedObj {
-  fn from(s: ShareNats) -> Self {
-    ShareQueueMinifiedObj {
-      user_id: s.user_id,
-      timestamp: s.timestamp,
-      algo: "nim".to_string(), //Algos::from_i16(s.algo),
-      worker_id: s.worker_id,
-      coin_id: s.coin_id,
-      worker_name: "".to_string(), // s.worker_name,
-      difficulty: s.difficulty,
-    }
-  }
-}
 
-#[derive(Debug)]
-struct WorkerDictObj {
-  worker_id: i32,
-  start_time: i64,
-  last_share_time: i64,
-  count: i16,
-  difficulty_sum: f64,
-  difficulty: f64,
-  worker_name: String,
-  user_id: i32,
-  // algo: Algos,
-  algo: String,
-  coin_id: i16,
-  hashrate: f64,
-  shares_per_min: f64,
-}
+// struct ShareQueueMinifiedObj {
+//   user_id: i32,
+//   timestamp: i64,
+//   algo: String,
+//   worker_id: i32,
+//   coin_id: i16,
+//   worker_name: String,
+//   difficulty: f64,
+// }
+// impl From<ShareNats> for ShareQueueMinifiedObj {
+//   fn from(s: ShareNats) -> Self {
+//     ShareQueueMinifiedObj {
+//       user_id: s.user_id,
+//       timestamp: s.timestamp,
+//       algo: "nim".to_string(), //Algos::from_i16(s.algo),
+//       worker_id: s.worker_id,
+//       coin_id: s.coin_id,
+//       worker_name: "".to_string(), // s.worker_name,
+//       difficulty: s.difficulty,
+//     }
+//   }
+// }
+
+// #[derive(Debug)]
+// struct WorkerDictObj {
+//   worker_id: i32,
+//   start_time: i64,
+//   last_share_time: i64,
+//   count: i16,
+//   difficulty_sum: f64,
+//   difficulty: f64,
+//   worker_name: String,
+//   user_id: i32,
+//   // algo: Algos,
+//   algo: String,
+//   coin_id: i16,
+//   hashrate: f64,
+//   shares_per_min: f64,
+// }
 // impl WorkerDictObj {
 //   fn calc_hashrate(self) -> f64 {
 //     let target = Algos::get_target(&self.algo) as f64;
@@ -213,13 +216,13 @@ struct WorkerDictObj {
 //   }
 // }
 
-type ShareQueueType = VecDeque<ShareQueueMinifiedObj>;
-type ShareQueuesMapType = HashMap<String, ShareQueueType>;
-type ShareQueuesMapArcType = Arc<Mutex<ShareQueuesMapType>>;
+// type ShareQueueType = VecDeque<ShareQueueMinifiedObj>;
+// type ShareQueuesMapType = HashMap<String, ShareQueueType>;
+// type ShareQueuesMapArcType = Arc<Mutex<ShareQueuesMapType>>;
 
 // type ShareQueueArc = Arc<Mutex<VecDeque<ShareQueueMinifiedObj>>>;
 
-type WorkerDict = HashMap<i32, WorkerDictObj>;
+// type WorkerDict = HashMap<i32, WorkerDictObj>;
 
 #[tokio::main]
 async fn main() {
@@ -238,7 +241,7 @@ async fn main() {
   );
   let config = config_nats.config;
 
-  let mut share_queues_map = Arc::new(Mutex::new(ShareQueuesMapType::new()));
+  // let mut share_queues_map = Arc::new(Mutex::new(ShareQueuesMapType::new()));
 
   // Initilize the nats connection
   let nc = match establish_nats_connection() {
@@ -257,358 +260,8 @@ async fn main() {
       panic!("MYSQL FAILED: {}", e)
     }
   };
-  //-----------------------SHARES LISTENER--------------------------------
-  let _share_listener = share_listener(&env, &nc, &mut share_queues_map);
 
-  //-----------------------QUEUE TRIM INTERVAL --------------------------------
-  let _trim_queue = trim_queue(config.clone(), &mut share_queues_map);
+  let worker_scalar_job = worker_scalar::run_jobs(&env, &mysql_pool, &nc);
 
-  //-----------------------CALC RAW WORKER HASHRATE INTERVAL --------------------------------
-  let _calc_raw_hashrate = calc_raw_hashrate(config.clone(), &mut share_queues_map, &mysql_pool);
-
-  // -----------------------CALC RAW WORKER HASHRATE INTERVAL --------------------------------
-  let _trim_disconnected_workers_listener = trim_disconnected_workers(&mysql_pool);
-
-  join!(
-    _share_listener,
-    _trim_queue,
-    _calc_raw_hashrate,
-    _trim_disconnected_workers_listener,
-  );
+  join!(worker_scalar_job);
 }
-
-// listen for shares and push to queue
-fn share_listener(
-  env: &String,
-  nc: &NatsConnection,
-  share_queues_map: &ShareQueuesMapArcType,
-) -> tokio::task::JoinHandle<()> {
-  // connect to the nats channel
-  let subject;
-  if env == "dev" {
-    subject = format!("dev.shares.2408");
-  } else {
-    subject = format!("shares.>");
-  }
-  let sub = match nc.subscribe(&subject) {
-    // let sub = match nc.subscribe(&subject) {
-    Ok(sub) => sub,
-    Err(e) => panic!("Queue stratum auth listener failed: {}", e),
-  };
-
-  // start a thread to listen for messages
-  let share_queues_map = share_queues_map.clone();
-  tokio::task::spawn(async move {
-    for msg in sub.messages() {
-      // println!("share: {}", msg.subject);
-      // parse the share into a minified object, then push it to the queue
-      if let Ok(share) = parse_share_msg_into_minified(&msg.data) {
-        let mut share_queues_map = share_queues_map.lock().unwrap();
-        // get the key for the share
-        let key = keygen(share.coin_id, &share.algo);
-
-        // add or get the queue for this coin
-        let share_queue = share_queues_map.entry(key).or_insert(ShareQueueType::new());
-
-        share_queue.push_back(share);
-      }
-    }
-  })
-}
-
-fn trim_queue(
-  config: ShareProcessorHashMap,
-  share_queues_map: &ShareQueuesMapArcType,
-) -> tokio::task::JoinHandle<()> {
-  let share_queues_map = share_queues_map.clone();
-  tokio::task::spawn(async move {
-    let mut interval = interval_at(
-      Instant::now() + Duration::from_millis(TRIM_INTERVAL * 1000),
-      Duration::from_millis(TRIM_INTERVAL * 1000),
-    );
-
-    loop {
-      interval.tick().await;
-
-      let mut share_queues_map = share_queues_map.lock().unwrap();
-      for (k, share_queue) in share_queues_map.iter_mut() {
-        // get the window length from the config, defeault to 300
-        let window_length = match config.get(k) {
-          Some(val) => val.window_length,
-          None => 300,
-        } as u64;
-        let time_current = SystemTime::now()
-          .duration_since(UNIX_EPOCH)
-          .unwrap()
-          .as_secs();
-        let time_window_start = time_current - window_length;
-        // trim the queue first to avoid adding shares we dont want
-        if share_queue.len() < 1 {
-          println!("shares queue empty, nothign to trim");
-          continue;
-        }
-        let mut time = share_queue.front().unwrap().timestamp;
-        let mut share: ShareQueueMinifiedObj;
-
-        // println!("time: {}, time_window_start: {}", time, time_window_start);
-        while time < time_window_start as i64 && share_queue.len() > 0 {
-          share = share_queue.pop_front().unwrap();
-          time = share.timestamp;
-        }
-
-        println!("Done Trimming - {}, queue-size: {}", k, share_queue.len());
-      }
-      // // TODO loop throguh the queue hashmap and do this for each
-      // let mut shares = shares_queue.lock().unwrap();
-      // let time_current = SystemTime::now()
-      //   .duration_since(UNIX_EPOCH)
-      //   .unwrap()
-      //   .as_secs();
-      // let time_window_start = time_current - WINDOW_LENGTH;
-
-      // // trim the queue first to avoid adding shares we dont want
-      // if shares.len() < 1 {
-      //   println!("shares queue empty, nothign to trim");
-      //   continue;
-      // }
-      // let mut time = shares.front().unwrap().timestamp;
-      // let mut share: ShareQueueMinifiedObj;
-      // //todo
-      // /*
-      //    calc the shortest trim time
-      //    while time < shortest trim time
-      //       check time against coin_id trim time
-      //       trim if needed
-      // */
-      // // println!("time: {}, time_window_start: {}", time, time_window_start);
-      // while time < time_window_start as i64 && shares.len() > 0 {
-      //   share = shares.pop_front().unwrap();
-      //   time = share.timestamp;
-      // }
-
-      // println!("Done Trimming, queue-size: {}", shares.len());
-    }
-  })
-}
-
-// move to database-maintenance
-fn trim_disconnected_workers(mysql_pool: &MysqlPool) -> tokio::task::JoinHandle<()> {
-  let mysql_pool = mysql_pool.clone();
-  tokio::task::spawn(async move {
-    let mut interval = interval_at(
-      Instant::now() + Duration::from_millis(TRIM_INTERVAL * 30000),
-      Duration::from_millis(TRIM_INTERVAL * 30000),
-    );
-
-    loop {
-      interval.tick().await;
-
-      let conn = match mysql_pool.get() {
-        Ok(conn) => conn,
-        Err(e) => {
-          // crash and sentry BIG ISSUE
-          println!("Error mysql conn. e: {}", e);
-          continue;
-          // panic!("error getting mysql connection e: {}",);
-        }
-      };
-      let lookback_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        - 60 * 60 * 30;
-      println!("Deleting stale workers");
-      delete_stale_workers_mysql(&conn, 2423, lookback_time as i32);
-      delete_stale_workers_mysql(&conn, 2408, lookback_time as i32);
-    }
-  })
-}
-
-fn parse_share_msg_into_minified(
-  msg: &Vec<u8>,
-) -> Result<ShareQueueMinifiedObj, rmp_serde::decode::Error> {
-  let share: ShareNats = match rmp_serde::from_read_ref(&msg) {
-    Ok(share) => share,
-    Err(e) => {
-      println!("Error parsing share. e: {}", e);
-      return Err(e);
-    }
-  };
-  Ok(ShareQueueMinifiedObj::from(share))
-}
-
-async fn calc_raw_hashrate(
-  config: ShareProcessorHashMap,
-  share_queues_map: &ShareQueuesMapArcType,
-  mysql_pool: &MysqlPool,
-) -> tokio::task::JoinHandle<()> {
-  let share_queues_map = share_queues_map.clone();
-  let mysql_pool = mysql_pool.clone();
-  tokio::task::spawn(async move {
-    let mut interval = interval_at(
-      Instant::now() + Duration::from_millis(HASHRATE_INTERVAL * 1000),
-      Duration::from_millis(HASHRATE_INTERVAL * 1000),
-    );
-
-    loop {
-      interval.tick().await;
-
-      let conn = match mysql_pool.get() {
-        Ok(conn) => conn,
-        Err(e) => {
-          // crash and sentry BIG ISSUE
-          println!("Error mysql conn. e: {}", e);
-          continue;
-          // panic!("error getting mysql connection e: {}",);
-        }
-      };
-
-      let mut share_queues_map = share_queues_map.lock().unwrap();
-      for (k, share_queue) in share_queues_map.iter_mut() {
-        // get the target from the config, defeault to 1000? why not
-        let algo_target = match config.get(k) {
-          Some(val) => val.algo_target,
-          None => 1000,
-        } as u64;
-        let mut worker_dict = WorkerDict::new();
-        // add each share from the queue to the worker dict
-        for share in share_queue.iter() {
-          let worker = worker_dict.entry(share.worker_id).or_insert(WorkerDictObj {
-            worker_id: share.worker_id,
-            start_time: share.timestamp,
-            last_share_time: share.timestamp,
-            count: 1,
-            difficulty_sum: share.difficulty,
-            difficulty: share.difficulty,
-            worker_name: share.worker_name.clone(),
-            user_id: share.user_id,
-            algo: "nim".to_string(),
-            coin_id: share.coin_id,
-            hashrate: 0.0,
-            shares_per_min: 0.0,
-          });
-          worker.count += 1;
-          worker.last_share_time = share.timestamp;
-          worker.difficulty_sum += share.difficulty;
-          worker.difficulty = share.difficulty;
-        }
-        //todo change to multithread the updates
-        for mut worker in worker_dict.values_mut() {
-          worker.hashrate =
-            worker.difficulty_sum * algo_target as f64 / WINDOW_LENGTH as f64 / 1000.0;
-          worker.shares_per_min = worker.count as f64 / (WINDOW_LENGTH as f64 / 60.0);
-          update_worker_hashrate(
-            &conn,
-            worker.worker_id,
-            worker.last_share_time as i32,
-            worker.shares_per_min,
-            worker.hashrate,
-            worker.difficulty,
-          )
-          .unwrap();
-        }
-        println!("Done updating, map size: {}", worker_dict.len());
-      }
-
-      // let shares_queue = shares_queue.lock().unwrap();
-      // let mut worker_dict = WorkerDict::new();
-      // // add each share from the queue to the worker dict
-      // for share in shares_queue.iter() {
-      //   let worker = worker_dict.entry(share.worker_id).or_insert(WorkerDictObj {
-      //     worker_id: share.worker_id,
-      //     start_time: share.timestamp,
-      //     last_share_time: share.timestamp,
-      //     count: 1,
-      //     difficulty_sum: share.difficulty,
-      //     difficulty: share.difficulty,
-      //     worker_name: share.worker_name.clone(),
-      //     user_id: share.user_id,
-      //     algo: "nim".to_string(),
-      //     coin_id: share.coin_id,
-      //     hashrate: 0.0,
-      //     shares_per_min: 0.0,
-      //   });
-      //   worker.count += 1;
-      //   worker.last_share_time = share.timestamp;
-      //   worker.difficulty_sum += share.difficulty;
-      //   worker.difficulty = share.difficulty;
-      // }
-
-      // let mut counter = 0;
-      // //todo change to multithread the updates
-      // for mut worker in worker_dict.values_mut() {
-      //   worker.hashrate = worker.difficulty_sum * 65536000.0 / WINDOW_LENGTH as f64 / 1000.0;
-      //   worker.shares_per_min = worker.count as f64 / (WINDOW_LENGTH as f64 / 60.0);
-      //   update_worker_hashrate(
-      //     &conn,
-      //     worker.worker_id,
-      //     worker.last_share_time as i32,
-      //     worker.shares_per_min,
-      //     worker.hashrate,
-      //     worker.difficulty,
-      //   )
-      //   .unwrap();
-      // }
-      // println!("Done updating, map size: {}", worker_dict.len());
-      // // println!("Worker 1: {}", worker_dict.get();
-      // // println!("worker dict: {:?}", worker_dict.keys());
-    }
-  })
-}
-
-fn keygen(coin_id: i16, algo: &String) -> String {
-  format!("{}-{}", coin_id, algo)
-  // return coin_id + algo
-}
-// fn generate_key(coin_id: i16, algo: Algos, user_id: i32, worker_name: &String) -> String {
-//   format!("{}-{}-{}-{}", coin_id, algo, user_id, worker_name,)
-// }
-
-// fn handle_share(
-//   //worker_dict: &mut WorkerDict,
-//   shares: &mut ShareQueue,
-//   share: ShareQueueMinifiedObj,
-// ) {
-//   // update the hasmap
-//   //update_dict_with_new_share(worker_dict, &share);
-//   // add to the queue
-//   shares.push_back(share);
-// }
-// fn update_dict_with_new_share(worker_dict: &mut WorkerDict, share: &ShareQueueMinifiedObj) {
-//   let key: String = generate_key(share.coin_id, share.algo, share.user_id, &share.worker_name);
-
-//   if let Some(worker) = worker_dict.get_mut(&key) {
-//     // worker exists already
-//     worker.end_time = share.timestamp;
-//     worker.count += 1;
-//     worker.difficulty += share.difficulty;
-//   // worker.hashrate = worker.calc_hashrate();
-//   } else {
-//     // new worker
-//     let worker = WorkerDictObj::new(
-//       share.timestamp,
-//       share.timestamp,
-//       &share.worker_name,
-//       share.user_id,
-//       share.algo,
-//       share.coin_id,
-//     );
-//     worker_dict.insert(key.to_string(), worker);
-//   }
-// }
-
-// fn update_dict_by_removing_share(worker_dict: &mut WorkerDict, share: &ShareQueueMinifiedObj){
-//     let key: String = generate_key(share.coin_id, share.algo, share.user_id, &share.worker_name);
-
-//       // set the user_scores dict to the proper key
-//   if !worker_dict.contains_key(&key) {
-//     panic!("WTF HOW DID WE GET HERE GREG????");
-//   }
-
-//   if let Some(worker) = worker_dict.get_mut(&key){
-//       // somehow remove the start time and move the starttime of the next share ?
-//       worker.difficulty -= share.difficulty;
-
-//   }
-
-// }

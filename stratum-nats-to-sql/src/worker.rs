@@ -35,7 +35,13 @@ pub fn stratum_disconnect_listener(
     //  grab a copy fo the pool to passed into the thread
     let mysql_pool = mysql_pool.clone();
 
+    let mut counter = 0;
     for msg in sub.messages() {
+      counter += 1;
+      if counter % 100 == 0 {
+        println!("Msg: {} (printing every 100)", msg.subject);
+        counter = 0;
+      }
       // println!("Msg: {}", msg.subject);
       let stratum_disconnect_nats = parse_msg_disconnect(&msg.data).unwrap();
 
@@ -74,7 +80,13 @@ pub fn stratum_devfee_listener(
     //  grab a copy fo the pool to passed into the thread
     let mysql_pool = mysql_pool.clone();
 
+    let mut counter = 0;
     for msg in sub.messages() {
+      counter += 1;
+      if counter % 100 == 0 {
+        println!("Msg: {} (printing every 100)", msg.subject);
+        counter = 0;
+      }
       // println!("Msg: {}", msg.subject);
       let stratum_devfee_nats = parse_msg_devfee(&msg.data).unwrap();
 

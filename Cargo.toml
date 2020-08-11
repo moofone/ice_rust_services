@@ -1,6 +1,7 @@
 [workspace]
 members = [
-  "blocks-nats-to-sql",
+"nats_sub",
+"blocks-nats-to-sql",
   "database-maintenance",
   "dpplns",
   "earnings-to-balances",

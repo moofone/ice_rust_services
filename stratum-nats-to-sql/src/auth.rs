@@ -8,6 +8,8 @@ use shared::db_mysql::{
   models::{WorkerMYSQL, WorkerMYSQLInsertable},
   MysqlPool,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use shared::nats::models::{StratumAuthNatsNIM, StratumAuthResponseNats};
 use shared::nats::NatsConnection;
 
@@ -44,10 +46,18 @@ pub fn stratum_auth_listener(
   tokio::task::spawn(async move {
     //  grab a copy fo the pool to passed into the thread
     let mysql_pool = mysql_pool.clone();
-
+    let mut counter = 0;
     for msg in sub.messages() {
+      counter += 1;
+      if counter % 100 == 0 {
+        println!("Msg: {} (printing every 100)", msg.subject);
+        counter = 0;
+      }
+
       //  grab a copy fo the pool to passed into the thread
       let mysql_pool = mysql_pool.clone();
+      // println!("MSG: {}", &msg);
+
       let stratum_auth_nats_nim = match parse_msg_auth(&msg.data) {
         Ok(a) => a,
         Err(e) => {
@@ -58,6 +68,10 @@ pub fn stratum_auth_listener(
       tokio::task::spawn(async move {
         // println!("Msg: {}", msg.subject);
 
+        let time_current = SystemTime::now()
+          .duration_since(UNIX_EPOCH)
+          .unwrap()
+          .as_millis();
         // grab a mysql pool connection
         let conn = match mysql_pool.get() {
           Ok(conn) => conn,
@@ -89,6 +103,15 @@ pub fn stratum_auth_listener(
             match msg.respond(&response) {
               Ok(_) => (),
               Err(e) => println!("Failed to send response: {}", e),
+            }
+
+            let elapsed = SystemTime::now()
+              .duration_since(UNIX_EPOCH)
+              .unwrap()
+              .as_millis()
+              - time_current;
+            if elapsed > 1000 {
+              println!("Done Sending worker: {},  took: {}ms", worker.id, elapsed);
             }
           }
           Err(e) => {

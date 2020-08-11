@@ -45,14 +45,32 @@ async fn main() {
   };
 
   // let sub = nc.subscribe("kdablocks").unwrap();
-  let sub = nc.subscribe(">").unwrap();
+  let now = std::time::Instant::now();
+	let mut count: u64 = 0;
+	let sub = nc.subscribe(">").unwrap();
+	loop {
+		  for msg in sub.try_iter() {
+	   //if let Some(msg) = sub.next() {
+		   let subject = &msg.subject;
+			 count = count + 1;
+       // println!("Received {}", msg);
+     //}
+  }
+		    let mut rate = 0;
+				if count > 0 && now.elapsed().as_secs() > 0 {
+           rate = count / now.elapsed().as_secs();
+		    }
+	       std::thread::sleep(std::time::Duration::from_millis(500));
+				        println!("waiting. count {} msg/s {}", count, rate);
+}
   //let kdablocks_sub = nc.subscribe("kdablocks").unwrap();
-  // loop {
-  //   if let Some(msg) = sub.next() {}
-  // }
-  for msg in sub.messages() {
-    let subject = &msg.subject;
-    //println!("subject: {}", subject);
+   // if let Some(msg) = sub.next() {
+	//		}
+//     for msg in sub.messages() {
+	//		   let size = sub.messages().
+   //     let subject = &msg.subject;
+        //println!("1subject: {}", subject);
+		//    std::thread::sleep(std::time::Duration::from_millis(10));
     // if subject.starts_with("shares.2423") {
     //   let share = match parse_share(&msg.data) {
     //     Ok(val) => val,
@@ -82,8 +100,6 @@ async fn main() {
     //     kdablock,
     //     color::Fg(color::Reset)
     //   );
-  }
-
   /*
   let share = match parse_share(&msg.data) {
     Ok(val) => val,
@@ -95,7 +111,6 @@ async fn main() {
   */
   //println!("Share: {}", share);
 
-  println!("done!")
   //  for msg in kdablocks_sub.messages() {
   //   let kdablock = match parse_kdablock(&msg.data) {
   //     Ok(val) => val,

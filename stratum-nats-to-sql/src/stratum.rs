@@ -69,8 +69,8 @@ pub fn stratum_heartbeat_listener(
   } else {
     subject = format!("stratum.heartbeat.2408");
   }
+  println!("listening to heartbeats");
   let sub = match nc.queue_subscribe(&subject, "stratum_heartbeat_worker") {
-    // let sub = match nc.subscribe(&subject) {
     Ok(sub) => sub,
     Err(e) => panic!("Queue stratum start listener failed: {}", e),
   };
@@ -101,7 +101,7 @@ fn parse_msg_start(msg: &Vec<u8>) -> Result<StratumStartNats, rmp_serde::decode:
     Ok(start) => start,
     Err(e) => panic!("Error parsing Startum start nats. e: {}", e),
   };
-  println!("stratum start nats nim : {:?}", start);
+  // println!("stratum start nats nim : {:?}", start);
   Ok(start)
 }
 fn parse_msg_heartbeat(msg: &Vec<u8>) -> Result<StratumHeartbeatNats, rmp_serde::decode::Error> {
@@ -109,7 +109,7 @@ fn parse_msg_heartbeat(msg: &Vec<u8>) -> Result<StratumHeartbeatNats, rmp_serde:
     Ok(heartbeat) => heartbeat,
     Err(e) => panic!("Error parsing Startum heartbeat nats. e: {}", e),
   };
-  println!("stratum heartbeat nats nim : {:?}", heartbeat);
+  // println!("stratum heartbeat nats nim : {:?}", heartbeat);
   Ok(heartbeat)
 }
 

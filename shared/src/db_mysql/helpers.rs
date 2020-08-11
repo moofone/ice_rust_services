@@ -335,8 +335,10 @@ pub mod workers {
     .map(|_| ())
   }
 
-  // delete stale workers
-  pub fn delete_stale_workers_mysql(
+  /// Deletes disconnected workers
+  /// * state = "disconnected"
+  /// * time  < _time
+  pub fn delete_disconnected_workers_mysql(
     conn: &MysqlConnection,
     _coin_id: i16,
     _time: i32,
@@ -345,7 +347,33 @@ pub mod workers {
       workers
         .filter(time.lt(_time))
         .filter(coinid.eq(_coin_id))
-        .filter(state.eq("disconnected").or(state.eq("devfee"))),
+        .filter(state.eq("disconnected")),
+    )
+    .execute(conn)
+    .map(|_| ())
+  }
+
+  /// deletes stale worker:  
+  /// * last_share_time < _time OR time < _time AND last_share_time IS NULL
+  /// * state = "connected" or "devfee"
+  pub fn delete_stale_workers_mysql(
+    conn: &MysqlConnection,
+    _coin_id: i16,
+    _time: i32,
+  ) -> Result<(), Error> {
+    delete(
+      workers
+        .filter(last_share_time.lt(_time))
+        .filter(coinid.eq(_coin_id))
+        .filter(state.eq("connected").or(state.eq("devfee"))),
+    )
+    .execute(conn)
+    .unwrap();
+    delete(
+      workers
+        .filter(last_share_time.is_null().and(time.lt(_time)))
+        .filter(coinid.eq(_coin_id))
+        .filter(state.eq("connected").or(state.eq("devfee"))),
     )
     .execute(conn)
     .map(|_| ())

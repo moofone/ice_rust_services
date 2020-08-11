@@ -17,6 +17,7 @@ use std::env;
 use tokio::time::{interval_at, Duration, Instant};
 // EVENT TIMERS
 const DPPLNS_RUN_INTERVAL: u64 = 10;
+const WORKER_CLEANUP_INTERVAL: u64 = 10; // s
 const RTT_TIMER: u64 = 30;
 
 #[tokio::main]
@@ -51,7 +52,28 @@ async fn main() {
 
         println!("Firing off dpplns");
         let msgpack_data = rmp_serde::to_vec("eventnow").unwrap();
-        match nc.publish("events.dpplns", msgpack_data) {
+        match nc.publish("dev.events.dpplns", msgpack_data) {
+          Ok(_) => (),
+          Err(err) => println!("err: {}", err),
+        }
+      }
+    }))
+  }
+  //-----------------------worker cleanup EVENT_--------------------------
+  {
+    let nc = nc.clone();
+    tasks.push(tokio::spawn(async move {
+      let mut interval = interval_at(
+        Instant::now() + Duration::from_secs(WORKER_CLEANUP_INTERVAL),
+        Duration::from_secs(WORKER_CLEANUP_INTERVAL),
+      );
+
+      loop {
+        interval.tick().await;
+
+        println!("Firing off worker cleanup");
+        let msgpack_data = rmp_serde::to_vec("eventnow").unwrap();
+        match nc.publish("dev.events.maintenance.workers", msgpack_data) {
           Ok(_) => (),
           Err(err) => println!("err: {}", err),
         }

@@ -1,4 +1,9 @@
 /*
+TODO
+- use user_name and user_type instead of owner_id
+- potentially keep a map if the join insert is too slow
+
+
 use  ShareNats
 parse shareNats -> convert to ShareMin
 Convert SharePGInsertable into ShareMin
@@ -309,6 +314,7 @@ async fn main() {
 
         let mut sha = shares.lock().unwrap();
         trim_shares_queue(&mut *sha);
+        //std::thread::sleep(std::time::Duration::from_millis(1));
       }
     });
     tasks.push(trim_task);
