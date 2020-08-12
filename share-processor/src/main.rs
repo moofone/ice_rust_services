@@ -144,6 +144,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time;
 const TRIM_INTERVAL: u64 = 1; //s
 use tokio::time::{interval_at, Duration, Instant};
+
+mod auth;
 mod worker_scalar;
 
 const WINDOW_LENGTH: u64 = 60 * 5; //s
@@ -262,6 +264,7 @@ async fn main() {
   };
 
   let worker_scalar_job = worker_scalar::run_jobs(&env, &mysql_pool, &nc);
+  let auth_job = auth::run_jobs(&env, &mysql_pool, &nc);
 
-  join!(worker_scalar_job);
+  join!(worker_scalar_job, auth_job);
 }

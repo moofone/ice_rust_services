@@ -20,6 +20,8 @@ pub fn establish_nats_connection() -> Result<NatsConnection, std::io::Error> {
   );
   // let con = nats::Options::with_user_pass(&nats_user, &nats_pass);
   let con = nats::Options::with_user_pass(&nats_user, &nats_pass);
+
+  
   // .add_root_certificate(nats_root_certificate);
   //   // .set_disconnect_callback(test)
   //   // .set_close_callback(test)

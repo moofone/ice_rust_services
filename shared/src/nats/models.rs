@@ -206,24 +206,24 @@ pub struct StratumAuthNats {
 //   }
 // }
 
-// // nim strauth auth model
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct StratumAuthNatsNIM {
-//   pub username: String,
-//   pub coin_id: i16,
-//   pub ip: String,
-//   pub difficulty: f64,
-//   pub version: String,
-//   pub consensus_mode: String,
-//   pub worker_name: String,
-//   pub uuid: String,
-//   pub algo: String,
-//   pub time: i32,
-//   pub stratum_id: String,
-//   pub mode: String,
-//   pub party_pass: String,
-//   pub pid: i32,
-// }
+// nim strauth auth model
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StratumAuthNatsNIM {
+  pub username: String,
+  pub coin_id: i16,
+  pub ip: String,
+  pub difficulty: f64,
+  pub version: String,
+  pub consensus_mode: String,
+  pub worker_name: String,
+  pub uuid: String,
+  pub algo: String,
+  pub time: i32,
+  pub stratum_id: String,
+  pub mode: String,
+  pub party_pass: String,
+  pub pid: i32,
+}
 
 // stratum start
 #[derive(Debug, Serialize, Deserialize)]
