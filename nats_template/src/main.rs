@@ -7,26 +7,46 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::task;
 use tokio::time;
+extern crate shared;
+use shared::nats::establish_nats_connection;
+use shared::nats::NatsConnection;
 
 // type ArcVecDeque = Arc<Mutex<VecDeque<i32>>>;
 #[tokio::main]
-async fn main() {
-  let items: server::ArcVecDeque = Arc::new(Mutex::new(VecDeque::new()));
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+  // Initilize the nats connection
+  let nc = match establish_nats_connection() {
+    Ok(n) => n,
+    Err(e) => {
+      println!("Nats did not connect: {}", e);
+      // crash and sentry BIG
+      panic!("Nats did not connect: {}", e);
+    }
+  };
 
-  let arr = vec![
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 1, 2, 3, 4,
-    5, 6, 7, 8, 9, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9,
-  ];
-  for i in arr {
-    tokio::spawn(async move {
-      println!("i - {}", i);
+  let sub = nc
+    .subscribe("dev.stratum.auth.2408")?
+    .with_handler(move |msg| {
+      println!("received {}", &msg);
+      Ok(())
     });
-    println!("done with i - {}", i);
-  }
-  println!("done with loop");
-  let s2 = server2::run_server(items.clone());
-  let s1 = server::run_server(items.clone());
-  join!(s1, s2);
+  // Ok(())
+  // let items: server::ArcVecDeque = Arc::new(Mutex::new(VecDeque::new()));
+
+  // let arr = vec![
+  //   1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 1, 2, 3, 4,
+  //   5, 6, 7, 8, 9, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9,
+  // ];
+  // for i in arr {
+  //   tokio::spawn(async move {
+  //     println!("i - {}", i);
+  //   });
+  //   println!("done with i - {}", i);
+  // }
+  // println!("done with loop");
+  // let s2 = server2::run_server(items.clone());
+  // let s1 = server::run_server(items.clone());
+  // join!(s1, s2);
 }
 
 pub fn add(a: i32, b: i32) -> i32 {

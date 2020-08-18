@@ -6,6 +6,7 @@ members = [
   "dpplns",
   "earnings-to-balances",
   "event-scheduler",
+  "nats_sub",
   "nats_template",
   "shared", 
   "shares-to-pg",

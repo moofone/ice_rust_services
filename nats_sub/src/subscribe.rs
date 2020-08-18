@@ -46,60 +46,63 @@ async fn main() {
 
   // let sub = nc.subscribe("kdablocks").unwrap();
   let now = std::time::Instant::now();
-	let mut count: u64 = 0;
-	let sub = nc.subscribe(">").unwrap();
-	loop {
-		  for msg in sub.try_iter() {
-	   //if let Some(msg) = sub.next() {
-		   let subject = &msg.subject;
-			 count = count + 1;
-       // println!("Received {}", msg);
-     //}
+  let mut count: u64 = 0;
+  let sub = nc.subscribe(">").unwrap();
+  for msg in sub.messages() {
+    println!("msg: {}", msg.subject);
   }
-		    let mut rate = 0;
-				if count > 0 && now.elapsed().as_secs() > 0 {
-           rate = count / now.elapsed().as_secs();
-		    }
-	       std::thread::sleep(std::time::Duration::from_millis(500));
-				        println!("waiting. count {} msg/s {}", count, rate);
-}
+  // 	loop {
+  // 		  for msg in sub.try_iter() {
+  // 	   //if let Some(msg) = sub.next() {
+  // 		   let subject = &msg.subject;
+  // 			 count = count + 1;
+  //        // println!("Received {}", msg);
+  //      //}
+  //   }
+  // 		    let mut rate = 0;
+  // 				if count > 0 && now.elapsed().as_secs() > 0 {
+  //            rate = count / now.elapsed().as_secs();
+  // 		    }
+  // 	       std::thread::sleep(std::time::Duration::from_millis(500));
+  // 				        println!("waiting. count {} msg/s {}", count, rate);
+  // }
   //let kdablocks_sub = nc.subscribe("kdablocks").unwrap();
-   // if let Some(msg) = sub.next() {
-	//		}
-//     for msg in sub.messages() {
-	//		   let size = sub.messages().
-   //     let subject = &msg.subject;
-        //println!("1subject: {}", subject);
-		//    std::thread::sleep(std::time::Duration::from_millis(10));
-    // if subject.starts_with("shares.2423") {
-    //   let share = match parse_share(&msg.data) {
-    //     Ok(val) => val,
-    //     Err(err) => {
-    //       println!("Error parsing share: {}", err);
-    //       continue;
-    //     }
-    //   };
-    //   println!(
-    //     "{}Share:{}{}",
-    //     color::Fg(color::Rgb(255, 0, 255)),
-    //     color::Fg(color::Reset),
-    //     share
-    //   );
-    // } else {
-    //   //if subject.starts_with("kdablocks") {
-    //   let kdablock = match parse_kdablock(&msg.data) {
-    //     Ok(val) => val,
-    //     Err(err) => {
-    //       println!("Error parsing kdablock: {}", err);
-    //       continue;
-    //     }
-    //   };
-    //   println!(
-    //     "{}{:?}{}",
-    //     color::Fg(color::Rgb(255, 50, 255)),
-    //     kdablock,
-    //     color::Fg(color::Reset)
-    //   );
+  // if let Some(msg) = sub.next() {
+  //		}
+  //     for msg in sub.messages() {
+  //		   let size = sub.messages().
+  //     let subject = &msg.subject;
+  //println!("1subject: {}", subject);
+  //    std::thread::sleep(std::time::Duration::from_millis(10));
+  // if subject.starts_with("shares.2423") {
+  //   let share = match parse_share(&msg.data) {
+  //     Ok(val) => val,
+  //     Err(err) => {
+  //       println!("Error parsing share: {}", err);
+  //       continue;
+  //     }
+  //   };
+  //   println!(
+  //     "{}Share:{}{}",
+  //     color::Fg(color::Rgb(255, 0, 255)),
+  //     color::Fg(color::Reset),
+  //     share
+  //   );
+  // } else {
+  //   //if subject.starts_with("kdablocks") {
+  //   let kdablock = match parse_kdablock(&msg.data) {
+  //     Ok(val) => val,
+  //     Err(err) => {
+  //       println!("Error parsing kdablock: {}", err);
+  //       continue;
+  //     }
+  //   };
+  //   println!(
+  //     "{}{:?}{}",
+  //     color::Fg(color::Rgb(255, 50, 255)),
+  //     kdablock,
+  //     color::Fg(color::Reset)
+  //   );
   /*
   let share = match parse_share(&msg.data) {
     Ok(val) => val,

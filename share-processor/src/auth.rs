@@ -11,17 +11,22 @@ use shared::db_mysql::{
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::time::{interval_at, Duration, Instant};
 
 use shared::nats::models::{ShareNats, StratumAuthNatsNIM, StratumAuthResponseNats};
 use shared::nats::NatsConnection;
 
-const SHARE_THRESHHOLD: i16 = 3;
+const SHARE_THRESHOLD: i16 = 1;
+const TRIM_INTERVAL: u64 = 60; //s
+const TRIM_THRESHOLD: u64 = 60; //s
+
 pub struct GenericAccount {
   // generic account that we can convert stratumauthnats into to use for workers
   pub user_name: String,
   pub owner_type: String,
   pub coin_id: i16,
   pub share_count: i16,
+  pub create_time: u64,
 }
 type AccountQueue = Arc<Mutex<HashMap<String, GenericAccount>>>;
 
@@ -32,8 +37,10 @@ pub async fn run_jobs(env: &String, mysql_pool: &MysqlPool, nc: &NatsConnection)
   let auth = stratum_auth_listener(env, &mysql_pool, nc, &account_queue.clone());
   //-----------------------SHARES LISTENER--------------------------------
   let _share_listener = share_listener(env, &mysql_pool, nc, &account_queue.clone());
+  //-----------------------Expired accounts job--------------------------------
+  let _expired_job = expired_job(env, &mut account_queue.clone());
 
-  join!(auth, _share_listener);
+  join!(auth, _share_listener, _expired_job);
 }
 pub fn stratum_auth_listener(
   env: &String,
@@ -61,6 +68,7 @@ pub fn stratum_auth_listener(
     //  grab a copy fo the pool to passed into the thread
     let mysql_pool = mysql_pool.clone();
     let mut counter = 0;
+    println!("waiting for auth messages");
     for msg in sub.messages() {
       // counter += 1;
       // if counter % 100 == 0 {
@@ -71,7 +79,7 @@ pub fn stratum_auth_listener(
       //  grab a copy fo the pool to passed into the thread
       let mysql_pool = mysql_pool.clone();
       // println!("MSG: {}", &msg);
-
+      println!("pool cloned");
       let stratum_auth_nats_nim = match parse_msg_auth(&msg.data) {
         Ok(a) => a,
         Err(e) => {
@@ -79,63 +87,32 @@ pub fn stratum_auth_listener(
           continue;
         }
       };
+      println!("message parsed");
+      // println!("auth message: {:?}", stratum_auth_nats_nim);
 
+      println!("querue cloned");
       let mut account_queue = account_queue.clone();
 
-      tokio::task::spawn(async move {
-        // println!("Msg: {}", msg.subject);
+      // tokio::task::spawn(async move {
+      // println!("Msg: {}", msg.subject);
+      // grab a mysql pool connection
+      let conn = match mysql_pool.get() {
+        Ok(conn) => {
+          println!("got conn");
+          conn
+        }
+        Err(e) => {
+          // crash and sentry BIG ISSUE
+          println!("Error mysql conn. e: {}", e);
+          panic!("error getting mysql connection e: {}",);
+        }
+      };
 
-        // grab a mysql pool connection
-        let conn = match mysql_pool.get() {
-          Ok(conn) => conn,
-          Err(e) => {
-            // crash and sentry BIG ISSUE
-            println!("Error mysql conn. e: {}", e);
-            panic!("error getting mysql connection e: {}",);
-          }
-        };
-
-        // get or insert the account
-        get_or_insert_account_nim(&conn, &stratum_auth_nats_nim, &mut account_queue);
-
-        // // insert or update the worker
-        // match insert_or_update_worker(&conn, &gen_account, &stratum_auth_nats_nim) {
-        //   Ok(worker) => {
-        //     let nats_response = StratumAuthResponseNats {
-        //       owner_id: gen_account.owner_id,
-        //       worker_id: worker.id,
-        //       uuid: worker.uuid,
-        //     };
-        //     // println!(
-        //     //   "nats response: {} - {} - {}",
-        //     //   nats_response.owner_id,
-        //     //   nats_response.worker_id,
-        //     //   nats_response.uuid.len()
-        //     // );
-        //     let response = rmp_serde::to_vec_named(&nats_response).unwrap();
-        //     match msg.respond(&response) {
-        //       Ok(_) => (),
-        //       Err(e) => println!("Failed to send response: {}", e),
-        //     }
-
-        //     let elapsed = SystemTime::now()
-        //       .duration_since(UNIX_EPOCH)
-        //       .unwrap()
-        //       .as_millis()
-        //       - time_current;
-        //     if elapsed > 1000 {
-        //       println!("Done Sending worker: {},  took: {}ms", worker.id, elapsed);
-        //     }
-        //   }
-        //   Err(e) => {
-        //     println!("Error inserting worker: {}", e);
-        //   }
-        // }
-        // let worker = match insert_or_update_worker(&conn, &gen_account, &stratum_auth_nats_nim){
-        //   Ok(w)=> w,
-        //   Err(e)=> println!("insert or update worker failed: {}",e)
-        // };
-      });
+      println!("Abouty to get or insert account");
+      // get or insert the account
+      get_account_or_add_to_queue(&conn, &stratum_auth_nats_nim, &mut account_queue);
+      // });
+      println!("thread over");
     }
   })
 }
@@ -150,7 +127,7 @@ fn parse_msg_auth(msg: &Vec<u8>) -> Result<StratumAuthNatsNIM, rmp_serde::decode
   // Ok(auth)
 }
 
-fn get_or_insert_account_nim(
+fn get_account_or_add_to_queue(
   pooled_conn: &MysqlPooledConnection,
   new_msg: &StratumAuthNatsNIM,
   account_queue: &mut AccountQueue,
@@ -161,6 +138,10 @@ fn get_or_insert_account_nim(
     owner_type: "account".to_string(), //new_msg.owner_type,
     coin_id: new_msg.coin_id,
     share_count: 0,
+    create_time: SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap()
+      .as_secs(),
   };
   // println!("{}", &new_msg.username);
   if is_username != None {
@@ -170,21 +151,20 @@ fn get_or_insert_account_nim(
         println!("Account not found, adding to queue - {}", e);
         // not found
         // add it to the queue to be added
+
         let mut account_queue = account_queue.lock().unwrap();
         account_queue
           .entry(gen_account.user_name.to_string())
           .or_insert(gen_account);
-        // account_queue.push(gen_account);
-        // match insert_account_mysql(pooled_conn, &new_msg.username, new_msg.coin_id as i32) {
-        //   Ok(a) => a,
-        //   Err(e) => panic!("insert failed. e: {}", e),
-        // }
+        println!("account queue length : {}", account_queue.len());
       }
-    };
-    // gen_account.owner_id = account.id;
-    // gen_account.owner_type = "account".to_string();
-    // gen_account.coin_id = account.coinid;
-  }
+    }
+  // gen_account.owner_id = account.id;
+  // gen_account.owner_type = "account".to_string();
+  // gen_account.coin_id = account.coinid;
+  } else {
+    println!("its a username?");
+  };
   // println!("account: {}", gen_account.owner_id);
   // gen_account
 }
@@ -223,7 +203,7 @@ fn share_listener(
           if let Some(account) = account_queue.get_mut(&share.user_name) {
             account.share_count += 1;
 
-            if account.share_count >= SHARE_THRESHHOLD {
+            if account.share_count >= SHARE_THRESHOLD {
               account_queue.remove(&share.user_name);
               drop(account_queue);
 
@@ -259,6 +239,27 @@ fn parse_share_msg(msg: &Vec<u8>) -> Result<ShareNats, rmp_serde::decode::Error>
   Ok(share)
 }
 
+fn expired_job(env: &String, account_queue: &mut AccountQueue) -> tokio::task::JoinHandle<()> {
+  let account_queue = account_queue.clone();
+  tokio::task::spawn(async move {
+    let mut interval = interval_at(
+      Instant::now() + Duration::from_millis(TRIM_INTERVAL * 1000),
+      Duration::from_millis(TRIM_INTERVAL * 1000),
+    );
+
+    loop {
+      interval.tick().await;
+      let expired_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        - TRIM_THRESHOLD;
+      let mut account_queue = account_queue.lock().unwrap();
+      account_queue.retain(|_, account| account.create_time > expired_time);
+      println!("account queue len: {}", account_queue.len());
+    }
+  })
+}
 // fn insert_or_update_worker(
 //   pooled_conn: &MysqlPooledConnection,
 //   account: &GenericAccount,

@@ -266,5 +266,5 @@ async fn main() {
   let worker_scalar_job = worker_scalar::run_jobs(&env, &mysql_pool, &nc);
   let auth_job = auth::run_jobs(&env, &mysql_pool, &nc);
 
-  join!(worker_scalar_job, auth_job);
+  join!(auth_job);
 }
