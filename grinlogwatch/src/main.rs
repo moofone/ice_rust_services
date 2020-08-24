@@ -13,11 +13,11 @@ use tokio::*;
 pub type ArcLogTime = Arc<Mutex<LogTime>>;
 
 const COIN_NAME: &str = "EPIC";
-const pm2_name: &str = "promtail";
-const TIMEOUT_WARN_LOG : Duration = Duration::from_secs(10);
+const pm2_name: &str = "epic";
+const TIMEOUT_WARN_LOG : Duration = Duration::from_secs(30);
 const TIMEOUT_WARN_SHARE : Duration = Duration::from_secs(30);
-const TIMEOUT_RESTART_LOG : Duration = Duration::from_secs(5);
-const TIMEOUT_RESTART_SHARE : Duration = Duration::from_secs(240);
+const TIMEOUT_RESTART_LOG : Duration = Duration::from_secs(180);
+const TIMEOUT_RESTART_SHARE : Duration = Duration::from_secs(300);
 const RESTART_TIME : Duration = Duration::from_secs(120);
 
 const LOGFILE: &str = "/root/.epic/main/epic-server.log";
@@ -72,7 +72,7 @@ async fn main() {
   {
     let log_time = log_time.clone();
     let check_task = tokio::spawn(async move {
-      let mut interval = time::interval(Duration::from_millis(1000));
+      let mut interval = time::interval(Duration::from_millis(2000));
       loop {
         interval.tick().await;
         let mut log_time = log_time.lock().unwrap();

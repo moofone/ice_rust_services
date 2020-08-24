@@ -13,3 +13,8 @@ members = [
   "stratum-nats-to-sql",
   "share-processor"
 ]
+
+exclude = [
+   "grinlogwatch"
+
+]

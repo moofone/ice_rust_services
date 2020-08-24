@@ -11,4 +11,4 @@ futures = "0.3.5"
 logwatcher = "0.1.1"
 chrono = "0.4"
 sentry = "*"
-tokio = { version = "0.2.22", features = ["full"] }
+tokio = { version = "0.2.22", features = ["macros", "time"] }
