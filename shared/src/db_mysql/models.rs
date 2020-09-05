@@ -181,7 +181,9 @@ pub struct BlockMYSQL {
   pub height: i32,
   pub time: i64,
   pub userid: Option<i32>,
-  pub workerid: Option<i32>,
+  // pub workerid: Option<i32>,
+  // pub workerid: Option<String>,
+  pub rigname: Option<String>,
   pub confirmations: Option<i32>,
   pub amount: f64,
   pub difficulty: f64,
@@ -196,6 +198,19 @@ pub struct BlockMYSQL {
   pub duration: i32,
   pub shares: i64,
 }
+
+/// string user info? to convert to ID's
+///
+// pub struct StringOwnerWorker {
+//   pub coin_id: i32,
+//   pub user_name: String,
+//   pub user_type: String,
+//   pub worker_name: String,
+//   pub worker_uuid: String,
+//   pub user_id: i32,
+//   pub worker_id: i32,
+// }
+
 /// block model for inserts.
 #[derive(Insertable)]
 #[table_name = "blocks"]
@@ -203,8 +218,11 @@ pub struct BlockMYSQLInsertable {
   pub coin_id: i32,
   pub height: i32,
   pub time: i64,
-  pub userid: i32,
-  pub workerid: i32,
+  pub userid: Option<i32>,
+  //pub user_type: String,
+  // pub workerid: i32,
+  // pub workerid: String,
+  pub rigname: String,
   pub confirmations: i32,
   pub amount: f64,
   pub difficulty: f64,
@@ -228,7 +246,8 @@ impl Default for BlockMYSQL {
       height: 0,
       time: unix_timestamp() as i64,
       userid: Some(0),
-      workerid: Some(0),
+      // workerid: Some(0),
+      rigname: Some("".to_string()),
       confirmations: Some(0),
       amount: 0.0,
       difficulty: 0.0,
@@ -253,8 +272,9 @@ pub struct KDABlock {
   pub coin_id: i32,
   pub height: i32,
   pub time: i64,
-  pub userid: i32,
-  pub workerid: i32,
+  pub userid: Option<i32>,
+  // pub workerid: i32,
+  pub rigname: String,
   pub confirmations: i32,
   pub amount: f64,
   pub difficulty: f64,
@@ -275,8 +295,9 @@ pub struct KDABlockMYSQLInsertable {
   pub coin_id: i32,
   pub height: i32,
   pub time: i32,
-  pub userid: i32,
-  pub workerid: i32,
+  pub userid: Option<i32>,
+  // pub workerid: i32,
+  pub rigname: String,
   pub confirmations: i32,
   pub amount: f64,
   pub difficulty: f64,

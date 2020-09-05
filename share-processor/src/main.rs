@@ -241,6 +241,13 @@ async fn main() {
       algo_target: 65536000,
     },
   );
+  config_nats.config.insert(
+    "2423-blake2s".to_string(),
+    ShareProcessorConfigObj {
+      window_length: 300,
+      algo_target: 1000,
+    },
+  );
   let config = config_nats.config;
 
   // let mut share_queues_map = Arc::new(Mutex::new(ShareQueuesMapType::new()));
@@ -266,5 +273,5 @@ async fn main() {
   let worker_scalar_job = worker_scalar::run_jobs(&env, &mysql_pool, &nc);
   let auth_job = auth::run_jobs(&env, &mysql_pool, &nc);
 
-  join!(auth_job);
+  join!(worker_scalar_job, auth_job);
 }

@@ -1,3 +1,12 @@
+pub mod config {
+
+  // get all data needed for each service
+
+  // dpplns config query
+
+  // share-processor config query
+}
+
 pub mod accounts {
   use super::super::{models::AccountMYSQL, schema::accounts::dsl::*};
   use diesel::result::Error;
@@ -302,13 +311,13 @@ pub mod workers {
 
   pub fn update_worker_hashrate(
     conn: &MysqlConnection,
-    _id: i32,
+    _uuid: &String,
     _last_share_time: i32,
     _shares_per_min: f64,
     _hashrate: f64,
     _difficulty: f64,
   ) -> Result<(), Error> {
-    update(workers.filter(id.eq(_id)))
+    update(workers.filter(uuid.eq(_uuid)))
       .set((
         hashrate.eq(_hashrate),
         last_share_time.eq(_last_share_time),
@@ -415,7 +424,37 @@ pub mod stratums {
     .map(|_| ())
   }
 }
+// pub mod multi_table {
+//   use super::super::{
+//     models::{AccountMYSQL, StringOwnerWorker, WorkerMYSQLInsertable},
+//     schema::stratums::dsl::*,
+//   };
+//   use diesel::result::Error;
+//   use diesel::{insert_into, mysql::MysqlConnection, prelude::*, update};
 
+//   // convert stringownerworker into usable id's
+//   // get worker by worker name and owner
+//   pub fn get_account_worker_ids(
+//     conn: &MysqlConnection,
+//     _string_owner_worker: &StringOwnerWorker,
+//   ) -> Result<StringOwnerWorker, Error> {
+//     let user_id = accounts
+//       .filter(coin_id.eq(_string_owner_worker.coin_id))
+//       .filter(username.eq(_string_owner_worker.user_name));
+
+//     workers
+//       .filter(owner_id.eq(_owner_id))
+//       .filter(owner_type.eq(_owner_type))
+//       .filter(worker.eq(_worker))
+//       .filter(state.eq("disconnected").or(state.eq("devfee")))
+//       .first::<WorkerMYSQL>(conn)
+//     // println!(
+//     //   "query: {}",
+//     //   diesel::debug_query::<diesel::mysql::Mysql, _>(&query)
+//     // );
+//     // query.first::<WorkerMYSQL>(conn)
+//   }
+// }
 // todo !!
 // pub mod users {
 

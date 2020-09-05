@@ -33,9 +33,9 @@ pub fn stratum_auth_listener(
   let mysql_pool = mysql_pool.clone();
   let subject;
   if env == "dev" {
-    subject = format!("dev.stratum.auth.2408");
+    subject = format!("dev.stratum.auth.>");
   } else {
-    subject = format!("stratum.auth.2408");
+    subject = format!("stratum.auth.>");
   }
   let sub = match nc.queue_subscribe(&subject, "stratum_auth_worker") {
     // let sub = match nc.subscribe(&subject) {

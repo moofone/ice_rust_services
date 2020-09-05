@@ -22,10 +22,12 @@ pub fn stratum_disconnect_listener(
   let mysql_pool = mysql_pool.clone();
   let subject;
   if env == "dev" {
-    subject = format!("dev.stratum.disconnect.2408");
+    subject = format!("dev.stratum.disconnect.>");
   } else {
-    subject = format!("stratum.disconnect.2408");
+    subject = format!("stratum.disconnect.>");
   }
+  println!("listening to worker disconnects");
+
   let sub = match nc.queue_subscribe(&subject, "stratum_disconnect_worker") {
     // let sub = match nc.subscribe(&subject) {
     Ok(sub) => sub,
@@ -67,10 +69,12 @@ pub fn stratum_devfee_listener(
   let mysql_pool = mysql_pool.clone();
   let subject;
   if env == "dev" {
-    subject = format!("dev.stratum.devfee.2408");
+    subject = format!("dev.stratum.devfee.>");
   } else {
-    subject = format!("stratum.devfee.2408");
+    subject = format!("stratum.devfee.>");
   }
+  println!("listening to worker devfees");
+
   let sub = match nc.queue_subscribe(&subject, "stratum_devfee_worker") {
     // let sub = match nc.subscribe(&subject) {
     Ok(sub) => sub,

@@ -155,6 +155,7 @@ let mode = match modes.get(&b.mode) {
 */
 #[tokio::main]
 async fn main() {
+  // TODO: This should be moved to shared so each module / project has one spot to initialize
   let _guard =
     sentry::init("https://689607b053ac4fbb81ee82a08a8aa18a@sentry.watlab.icemining.ca/9");
 

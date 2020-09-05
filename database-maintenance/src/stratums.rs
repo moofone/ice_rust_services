@@ -15,8 +15,8 @@ use shared::db_mysql::{
   MysqlPool,
 };
 use shared::nats::models::{
-  StratumAuthNatsNIM, StratumAuthResponseNats, StratumDevfeeNats, StratumDifficultyNats,
-  StratumDisconnectNats, StratumHeartbeatNats, StratumStartNats,
+  StratumAuthNatsNIM, StratumDevfeeNats, StratumDisconnectNats, StratumHeartbeatNats,
+  StratumStartNats,
 };
 use shared::nats::{establish_nats_connection, NatsConnection};
 use std::env;
@@ -34,9 +34,9 @@ fn mysql_stratums_cleanup_listener(
   let mysql_pool = mysql_pool.clone();
   let subject;
   if env == "dev" {
-    subject = format!("dev.stratum.heartbeat.2408");
+    subject = format!("dev.stratum.heartbeat.>");
   } else {
-    subject = format!("stratum.heartbeat.2408");
+    subject = format!("stratum.heartbeat.>");
   }
   let sub = match nc.queue_subscribe(&subject, "stratum_heartbeat_worker") {
     // let sub = match nc.subscribe(&subject) {

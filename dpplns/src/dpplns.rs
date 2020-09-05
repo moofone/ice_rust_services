@@ -47,6 +47,8 @@ use hashbrown::HashMap;
 use shared::db_pg::{
   establish_pg_connection, helpers::shares::select_shares_newer_pg, models::SharePg,
 };
+
+use shared::enums::DpplnsConfigs;
 // use shared::enums::*;
 // use sentry::{capture_message, integrations::failure::capture_error, Level};
 // use std::collections::{HashMap, VecDeque};
@@ -166,6 +168,7 @@ async fn main() {
   // let _guard =
   //   sentry::init("https://689607b053ac4fbb81ee82a08a8aa18a@sentry.watlab.icemining.ca/9");
 
+  let coin_configs = DpplnsConfigs::new();
   // create base structs to be used across threads
   let shares_queue = Arc::new(Mutex::new(ShareQueueType::new()));
   let user_scores_map = Arc::new(Mutex::new(UserScoreMapType::new()));

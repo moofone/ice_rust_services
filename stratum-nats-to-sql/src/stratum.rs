@@ -26,10 +26,12 @@ pub fn stratum_start_listener(
   let mysql_pool = mysql_pool.clone();
   let subject;
   if env == "dev" {
-    subject = format!("dev.stratum.start.2408");
+    subject = format!("dev.stratum.start.>");
   } else {
-    subject = format!("stratum.start.2408");
+    subject = format!("stratum.start.>");
   }
+  println!("listening to stratum starts");
+
   let sub = match nc.queue_subscribe(&subject, "stratum_start_worker") {
     // let sub = match nc.subscribe(&subject) {
     Ok(sub) => sub,
@@ -65,9 +67,9 @@ pub fn stratum_heartbeat_listener(
   let mysql_pool = mysql_pool.clone();
   let subject;
   if env == "dev" {
-    subject = format!("dev.stratum.heartbeat.2408");
+    subject = format!("dev.stratum.heartbeat.>");
   } else {
-    subject = format!("stratum.heartbeat.2408");
+    subject = format!("stratum.heartbeat.>");
   }
   println!("listening to heartbeats");
   let sub = match nc.queue_subscribe(&subject, "stratum_heartbeat_worker") {

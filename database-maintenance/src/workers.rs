@@ -48,23 +48,24 @@ fn mysql_workers_cleanup_listener(
       };
       // DELETE FROM WORKERS WHERE PID IS NOT IN THE STRATUM TABLE
 
-      // DELETE FROM WORKERS WHERE WORKER IS STALE
+      // DELETE FROM WORKERS where the worker is disconnected for longer than n minutes
       let lookback_disconnected_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
         - 60 * 5; //30 minutes
 
+      // delete from workers where not active for longe rthan n minutes?
       let lookback_stale_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
-        - 60 * 15; // 30 minutes
+        - 60 * 5; // 30 minutes
       println!("Deleting stale workers");
-      delete_stale_workers_mysql(&conn, 2423, lookback_stale_time as i32);
-      delete_stale_workers_mysql(&conn, 2408, lookback_stale_time as i32);
-      delete_disconnected_workers_mysql(&conn, 2408, lookback_disconnected_time as i32);
-      delete_disconnected_workers_mysql(&conn, 2408, lookback_disconnected_time as i32);
+      delete_stale_workers_mysql(&conn, 2423, lookback_stale_time as i32).unwrap();
+      delete_stale_workers_mysql(&conn, 2408, lookback_stale_time as i32).unwrap();
+      delete_disconnected_workers_mysql(&conn, 2408, lookback_disconnected_time as i32).unwrap();
+      delete_disconnected_workers_mysql(&conn, 2423, lookback_disconnected_time as i32).unwrap();
     }
   })
 }

@@ -9,26 +9,30 @@ extern crate chrono_humanize;
 // use chrono_humanize::HumanTime;
 
 // use std::collections::HashMap;
-
+// const map : HashMap ={
+//   a: 2,
+//   b:3,
+// }
 //TODO rename algo and mode to _id
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShareNats {
   // pub user_id: i32, //owner_id
   pub user_name: String, //owner_id
-  pub user_type: i8,
+  pub user_type: String,
   // pub worker_id: i32,
-  pub uuid: String,
+  pub worker_uuid: String,
   pub worker_name: String,
   pub coin_id: i16,
   pub timestamp: i64,
   pub difficulty: f64,
   pub share_diff: f64,
   pub block_diff: f64,
-  pub algo: i16,
-  pub mode: i16,
+  pub algo: String,
+  pub mode: String,
+  pub height: u64,
   pub block_reward: f64,
   pub party_pass: String,
-  pub stratum_id: i16,
+  pub stratum_id: String,
 }
 
 // fn pretty_print(i: f64) -> String {
@@ -137,14 +141,14 @@ pub struct DPPLNSBlockNats {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BlockNats {
   pub coin_id: i16,
-  pub height: i32,
+  pub height: u64,
   pub time: i64,
   // pub user_id: i32, //owner_id
   pub user_name: String, //owner_id
-  pub user_type: i8,
+  pub user_type: String,
   // pub worker_id: i32,
-  pub uuid: String,
-  pub worker_name: String,
+  // pub uuid: String,
+  pub rig_name: String,
   pub confirmations: i32,
   pub amount: f64,
   pub difficulty: f64,
@@ -166,8 +170,11 @@ pub struct KDABlockNats {
   pub coin_id: i16,
   pub height: i32,
   pub time: i64,
-  pub userid: i32,
-  pub workerid: i32,
+  pub user_name: String,
+  pub user_type: String,
+  // pub worker_uuid: String,
+  pub rig_name: String,
+  // pub workerid: i32,
   pub confirmations: i32,
   pub amount: f64,
   pub difficulty: f64,
@@ -184,32 +191,32 @@ pub struct KDABlockNats {
   pub shares: i64,
 }
 
-/// Auth model.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StratumAuthNats {
-  pub ip: String,
-  pub version: String,
-  pub port: i32,
-  pub worker_name: String,
-  pub password: String,
-  pub uuid: String,
-  pub stratum_id: String,
-  pub coin_id: i16,
-  pub mode: String,
-}
-// impl StratumAuthNats {
-//   fn parse_worker_name(self) -> (String, String) {
-//     match self.worker_name.find('.') {
-//       Some(index) => (&self.worker_name[..index], &self.worker_name[index + 1..]),
-//       None => (self.worker_name, "default"),
-//     }
-//   }
+// /// Auth model.
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct StratumAuthNats {
+//   pub ip: String,
+//   pub version: String,
+//   pub port: i32,
+//   pub worker_name: String,
+//   pub password: String,
+//   pub uuid: String,
+//   pub stratum_id: String,
+//   pub coin_id: i16,
+//   pub mode: String,
 // }
+// // impl StratumAuthNats {
+// //   fn parse_worker_name(self) -> (String, String) {
+// //     match self.worker_name.find('.') {
+// //       Some(index) => (&self.worker_name[..index], &self.worker_name[index + 1..]),
+// //       None => (self.worker_name, "default"),
+// //     }
+// //   }
+// // }
 
 // nim strauth auth model
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StratumAuthNatsNIM {
-  pub username: String,
+  pub user_name: String,
   pub coin_id: i16,
   pub ip: String,
   pub difficulty: f64,
@@ -248,14 +255,14 @@ pub struct StratumHeartbeatNats {
   pub worker_count: i32,
 }
 
-// stratum difficulty update
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StratumDifficultyNats {
-  pub username: String,
-  pub uuid: String,
-  pub difficulty: f64,
-  pub compact_target: u64,
-}
+// // stratum difficulty update
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct StratumDifficultyNats {
+//   pub username: String,
+//   pub uuid: String,
+//   pub difficulty: f64,
+//   pub compact_target: u64,
+// }
 
 // stratum model
 #[derive(Debug, Serialize, Deserialize)]
@@ -270,18 +277,18 @@ pub struct StratumDevfeeNats {
   pub uuid: String,
 }
 
-// stratum model
-#[derive(Debug, Serialize)]
-pub struct StratumAuthResponseNats {
-  pub owner_id: i32,
-  pub worker_id: i32,
-  pub uuid: String,
-}
+// // stratum model
+// #[derive(Debug, Serialize)]
+// pub struct StratumAuthResponseNats {
+//   pub owner_id: i32,
+//   pub worker_id: i32,
+//   pub uuid: String,
+// }
 
 // stratum model
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShareProcessorConfigNats {
-  pub config: ShareProcessorHashMap,
+  pub config: HashMap<String, ShareProcessorConfigObj>,
 }
 
 pub type ShareProcessorHashMap = HashMap<String, ShareProcessorConfigObj>;
@@ -291,7 +298,7 @@ pub struct ShareProcessorConfigObj {
   pub window_length: u32,
   pub algo_target: u32,
 }
-// /// Auth model.
+// // /// Auth model.
 // #[derive(Debug, Serialize, Deserialize)]
 // pub struct StratumAuthNats {
 //   pub ip: String,

@@ -163,9 +163,9 @@ impl From<ShareNats> for ShareQueueMinifiedObj {
       user_name: s.user_name.to_string(),
       // user_id: s.user_id,
       timestamp: s.timestamp,
-      algo: "nim".to_string(), //Algos::from_i16(s.algo),
+      algo: s.algo.to_string(), //Algos::from_i16(s.algo),
       // worker_id: s.worker_id,
-      uuid: s.uuid.to_string(),
+      uuid: s.worker_uuid.to_string(),
       coin_id: s.coin_id,
       worker_name: "".to_string(), // s.worker_name,
       difficulty: s.difficulty,
@@ -209,6 +209,14 @@ pub async fn run_jobs(env: &String, mysql_pool: &MysqlPool, nc: &NatsConnection)
     ShareProcessorConfigObj {
       window_length: 300,
       algo_target: 65536000,
+      // min_share_count: 0,
+    },
+  );
+  config_nats.config.insert(
+    "2423-blake2s".to_string(),
+    ShareProcessorConfigObj {
+      window_length: 300,
+      algo_target: 1000,
     },
   );
   let config = config_nats.config;
@@ -244,9 +252,9 @@ fn share_listener(
   // connect to the nats channel
   let subject;
   if env == "dev" {
-    subject = format!("dev.shares.2408");
+    subject = format!("dev.shares.>");
   } else {
-    subject = format!("shares.>");
+    subject = format!("shares.2428");
   }
   let sub = match nc.subscribe(&subject) {
     // let sub = match nc.subscribe(&subject) {
@@ -257,8 +265,9 @@ fn share_listener(
   // start a thread to listen for messages
   let share_queues_map = share_queues_map.clone();
   tokio::task::spawn(async move {
+    println!("Listening for shares in worker_scalar");
     for msg in sub.messages() {
-      // println!("share: {}", msg.subject);
+      println!("share: {}", msg.subject);
       // parse the share into a minified object, then push it to the queue
       if let Ok(share) = parse_share_msg_into_minified(&msg.data) {
         let mut share_queues_map = share_queues_map.lock().unwrap();
@@ -279,6 +288,7 @@ fn trim_queue(
   share_queues_map: &ShareQueuesMapArcType,
 ) -> tokio::task::JoinHandle<()> {
   let share_queues_map = share_queues_map.clone();
+  println!("starting worker_scalar trim queue");
   tokio::task::spawn(async move {
     let mut interval = interval_at(
       Instant::now() + Duration::from_millis(TRIM_INTERVAL * 1000),
@@ -291,6 +301,7 @@ fn trim_queue(
       let mut share_queues_map = share_queues_map.lock().unwrap();
       for (k, share_queue) in share_queues_map.iter_mut() {
         // get the window length from the config, defeault to 300
+        // println!("KEY: {}", k);
         let window_length = match config.get(k) {
           Some(val) => val.window_length,
           None => 300,
@@ -416,7 +427,7 @@ async fn calc_raw_hashrate(
               worker_name: share.worker_name.clone(),
               // user_id: share.user_id,
               user_name: share.user_name.to_string(),
-              algo: "nim".to_string(),
+              algo: share.algo.to_string(),
               coin_id: share.coin_id,
               hashrate: 0.0,
               shares_per_min: 0.0,
@@ -428,20 +439,27 @@ async fn calc_raw_hashrate(
         }
         //todo change to multithread the updates
         for mut worker in worker_dict.values_mut() {
+          // println!("worker difficulty sum: {}", worker.difficulty_sum);
           worker.hashrate =
-            worker.difficulty_sum * algo_target as f64 / WINDOW_LENGTH as f64 / 1000.0;
+            (worker.difficulty_sum * (algo_target as f64) / WINDOW_LENGTH as f64) / 1000.0;
           worker.shares_per_min = worker.count as f64 / (WINDOW_LENGTH as f64 / 60.0);
-          // update_worker_hashrate(
-          //   &conn,
-          //   worker.worker_id,
-          //   worker.last_share_time as i32,
-          //   worker.shares_per_min,
-          //   worker.hashrate,
-          //   worker.difficulty,
-          // )
-          // .unwrap();
+          // println!(
+          //   "worker uuid: {}, hashrate: {}, algo target: {}, window_length: {},",
+          //   &worker.uuid, &worker.hashrate, algo_target, WINDOW_LENGTH,
+          // );
+          update_worker_hashrate(
+            &conn,
+            &worker.uuid,
+            worker.last_share_time as i32,
+            worker.shares_per_min,
+            worker.hashrate,
+            worker.difficulty,
+          )
+          .unwrap();
         }
         println!("Done updating, map size: {}", worker_dict.len());
+
+        // TODO - update workers set hashrate = 0 where last_share_time > window length
       }
     }
   })

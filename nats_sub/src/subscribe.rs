@@ -49,6 +49,9 @@ async fn main() {
   let mut count: u64 = 0;
   let sub = nc.subscribe(">").unwrap();
   for msg in sub.messages() {
+    if msg.subject == "shares.2423" {
+      continue;
+    }
     println!("msg: {}", msg.subject);
   }
   // 	loop {

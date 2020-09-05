@@ -40,24 +40,24 @@ async fn main() {
 
   //-----------------------DPPLNS EVENT_--------------------------
   {
-    let nc = nc.clone();
-    tasks.push(tokio::spawn(async move {
-      let mut interval = interval_at(
-        Instant::now() + Duration::from_secs(DPPLNS_RUN_INTERVAL),
-        Duration::from_secs(DPPLNS_RUN_INTERVAL),
-      );
+    // let nc = nc.clone();
+    // tasks.push(tokio::spawn(async move {
+    //   let mut interval = interval_at(
+    //     Instant::now() + Duration::from_secs(DPPLNS_RUN_INTERVAL),
+    //     Duration::from_secs(DPPLNS_RUN_INTERVAL),
+    //   );
 
-      loop {
-        interval.tick().await;
+    //   loop {
+    //     interval.tick().await;
 
-        println!("Firing off dpplns");
-        let msgpack_data = rmp_serde::to_vec("eventnow").unwrap();
-        match nc.publish("dev.events.dpplns", msgpack_data) {
-          Ok(_) => (),
-          Err(err) => println!("err: {}", err),
-        }
-      }
-    }))
+    //     println!("Firing off dpplns");
+    //     let msgpack_data = rmp_serde::to_vec("eventnow").unwrap();
+    //     match nc.publish("dev.events.dpplns", msgpack_data) {
+    //       Ok(_) => (),
+    //       Err(err) => println!("err: {}", err),
+    //     }
+    //   }
+    // }))
   }
   //-----------------------worker cleanup EVENT_--------------------------
   {
@@ -67,13 +67,19 @@ async fn main() {
         Instant::now() + Duration::from_secs(WORKER_CLEANUP_INTERVAL),
         Duration::from_secs(WORKER_CLEANUP_INTERVAL),
       );
-
+      let env = "dev";
       loop {
         interval.tick().await;
 
         println!("Firing off worker cleanup");
         let msgpack_data = rmp_serde::to_vec("eventnow").unwrap();
-        match nc.publish("dev.events.maintenance.workers", msgpack_data) {
+        let subject;
+        if env == "dev" {
+          subject = format!("dev.events.maintenance.workers");
+        } else {
+          subject = format!("events.maintenance.workers");
+        }
+        match nc.publish(&subject, msgpack_data) {
           Ok(_) => (),
           Err(err) => println!("err: {}", err),
         }

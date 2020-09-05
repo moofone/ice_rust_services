@@ -9,10 +9,11 @@ extern crate shared;
 // use sentry::{capture_message, integrations::failure::capture_error, Level};
 use shared::db_mysql::{
   establish_mysql_connection,
+  helpers::accounts::get_account_by_username_mysql,
   helpers::blocks::insert_blocks_mysql,
   helpers::kdablocks::insert_kdablocks_mysql,
   models::{BlockMYSQLInsertable, KDABlockMYSQLInsertable},
-  MysqlPool,
+  MysqlPool, MysqlPooledConnection,
 };
 use shared::nats::establish_nats_connection;
 use shared::nats::models::{BlockNats, KDABlockNats};
@@ -54,7 +55,14 @@ async fn main() {
     // grab a copy fo the pool to passed into the thread
     let mysql_pool = mysql_pool.clone();
     // setup nats channel
-    let subject = format!("kdablocks");
+    let subject;
+    let env = "dev";
+    if env == "dev" {
+      subject = format!("dev.stratum.kdablocks");
+    } else {
+      subject = format!("stratum.kdablocks");
+    }
+    // let subject = format!("dev.stratum.kdablocks");
     let sub = match nc.queue_subscribe(&subject, "kdablocks_worker") {
       // let sub = match nc.subscribe(&subject) {
       Ok(sub) => sub,
@@ -78,30 +86,27 @@ async fn main() {
         // spawn a thread for the block
         tokio::task::spawn_blocking(move || {
           println!("processing block");
-          // parse the block
-          let kdablock = match parse_kdablock(&msg.data) {
-            Ok(val) => val,
-            Err(e) => {
-              // massive sentry error
-              println!("Error parsing kdablock: {}", e);
-              // return from tokio async block and move on
-              return;
-            }
-          };
-
           // grab a mysql pool connection
           let conn = match mysql_pool.get() {
             Ok(conn) => conn,
             Err(e) => {
               // crash and sentry BIG ISSUE
               println!("Error mysql conn. e: {}", e);
-              panic!(
-                "error getting mysql connection. block: {}, e: {}",
-                &kdablock.height, e
-              );
+              panic!("error getting mysql connection.e: {}", e);
+            }
+          };
+          // parse the block
+          let kdablock = match parse_kdablock(&msg.data, &conn) {
+            Ok(val) => val,
+            Err(e) => {
+              // massive sentry error
+              println!("Error parsing kdablock: {}, subject: {}", e, &msg.subject);
+              // return from tokio async block and move on
+              return;
             }
           };
 
+          // let account_id = get_account_by_username_mysql(&conn, kdablock.user)
           // create a queue of blocks ( incase we want to scale or bulk insert)
           let mut kdablocks: Vec<KDABlockMYSQLInsertable> = Vec::new();
           let height = kdablock.height;
@@ -128,7 +133,13 @@ async fn main() {
     // grab a copy fo the pool to passed into the thread
     let mysql_pool = mysql_pool.clone();
     // setup nats channel
-    let subject = format!("blocks");
+    let subject;
+    let env = "dev";
+    if env == "dev" {
+      subject = format!("dev.stratum.blocks");
+    } else {
+      subject = format!("stratum.blocks");
+    }
     let sub = match nc.queue_subscribe(&subject, "blocks_worker") {
       // let sub = match nc.subscribe(&subject) {
       Ok(sub) => sub,
@@ -153,15 +164,6 @@ async fn main() {
         tokio::task::spawn_blocking(move || {
           println!("processing block");
           // parse the block
-          let block = match parse_block(&msg.data) {
-            Ok(val) => val,
-            Err(e) => {
-              // massive sentry error
-              println!("Error parsing block: {}", e);
-              // return from tokio async block and move on
-              return;
-            }
-          };
 
           // grab a mysql pool connection
           let conn = match mysql_pool.get() {
@@ -169,10 +171,16 @@ async fn main() {
             Err(e) => {
               // crash and sentry BIG ISSUE
               println!("Error mysql conn. e: {}", e);
-              panic!(
-                "error getting mysql connection. block: {}, e: {}",
-                &block.height, e
-              );
+              panic!("error getting mysql connection.e: {}", e);
+            }
+          };
+          let block = match parse_block(&msg.data, &conn) {
+            Ok(val) => val,
+            Err(e) => {
+              // massive sentry error
+              println!("Error parsing block: {}, subject: {}", e, &msg.subject);
+              // return from tokio async block and move on
+              return;
             }
           };
 
@@ -203,33 +211,49 @@ async fn main() {
 }
 
 // converts nats message to KDABlockMYSQLInsertable
-fn parse_kdablock(msg: &Vec<u8>) -> Result<KDABlockMYSQLInsertable, rmp_serde::decode::Error> {
+fn parse_kdablock(
+  msg: &Vec<u8>,
+  conn: &MysqlPooledConnection,
+) -> Result<KDABlockMYSQLInsertable, rmp_serde::decode::Error> {
   let b: KDABlockNats = match rmp_serde::from_read_ref(&msg) {
     Ok(b) => b,
     Err(err) => return Err(err),
   };
-  let block = kdablocknats_to_blockmysqlinsertable(b);
+
+  let block = kdablocknats_to_blockmysqlinsertable(b, conn);
   Ok(block)
 }
 // converts nats message to BlockMYSQLInsertable
-fn parse_block(msg: &Vec<u8>) -> Result<BlockMYSQLInsertable, rmp_serde::decode::Error> {
+fn parse_block(
+  msg: &Vec<u8>,
+  conn: &MysqlPooledConnection,
+) -> Result<BlockMYSQLInsertable, rmp_serde::decode::Error> {
   let b: BlockNats = match rmp_serde::from_read_ref(&msg) {
     Ok(b) => b,
     Err(err) => return Err(err),
   };
-  let mut block = blocknats_to_blockmysqlinsertable(b);
+  let mut block = blocknats_to_blockmysqlinsertable(b, conn);
   if block.mode.eq("") {
     block.mode = "normal".to_string();
   }
   Ok(block)
 }
-fn kdablocknats_to_blockmysqlinsertable(b: KDABlockNats) -> KDABlockMYSQLInsertable {
+
+fn kdablocknats_to_blockmysqlinsertable(
+  b: KDABlockNats,
+  conn: &MysqlPooledConnection,
+) -> KDABlockMYSQLInsertable {
+  let user_id: Option<i32> = match get_account_by_username_mysql(conn, &b.user_name) {
+    Ok(account) => Some(account.id),
+    Err(_) => None,
+  };
   KDABlockMYSQLInsertable {
     coin_id: b.coin_id as i32,
     height: b.height,
     time: b.time as i32,
-    userid: b.userid,
-    workerid: b.workerid,
+    userid: user_id,
+    // workerid: b.workerid,
+    rigname: b.rig_name,
     confirmations: b.confirmations,
     amount: b.amount,
     difficulty: b.difficulty,
@@ -244,13 +268,21 @@ fn kdablocknats_to_blockmysqlinsertable(b: KDABlockNats) -> KDABlockMYSQLInserta
     node_id: b.node_id,
   }
 }
-fn blocknats_to_blockmysqlinsertable(b: BlockNats) -> BlockMYSQLInsertable {
+fn blocknats_to_blockmysqlinsertable(
+  b: BlockNats,
+  conn: &MysqlPooledConnection,
+) -> BlockMYSQLInsertable {
+  let user_id: Option<i32> = match get_account_by_username_mysql(conn, &b.user_name) {
+    Ok(account) => Some(account.id),
+    Err(_) => None,
+  };
   BlockMYSQLInsertable {
     coin_id: b.coin_id as i32,
-    height: b.height,
+    height: b.height as i32,
     time: b.time,
-    userid: b.userid,
-    workerid: b.workerid,
+    userid: user_id,
+    rigname: b.rig_name,
+    // workerid: b.workerid,
     confirmations: b.confirmations,
     amount: b.amount,
     difficulty: b.difficulty,

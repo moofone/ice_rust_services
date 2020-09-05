@@ -1,32 +1,70 @@
 use std::fmt;
 
-#[derive(Debug, Copy, Clone)]
-pub enum Coins {
-  MWC = 2422,
-  VTC = 2122,
-  SECONDARY = 2,
-  CUCKOO = 3,
-  CUCKOO29 = 4,
-  EQUIHASH144 = 5,
-  BEAMHASHII = 6,
-  ARGON2D = 7,
-  RANDOMX = 8,
-  PROGPOW = 9,
-  CUCKAROO = 10,
-  CUCKATOO = 11,
-  BLAKE2S = 12,
+// #[derive(Debug, Copy, Clone)]
+// pub enum Coins {
+//   MWC = 2422,
+//   VTC = 2122,
+//   SECONDARY = 2,
+//   CUCKOO = 3,
+//   CUCKOO29 = 4,
+//   EQUIHASH144 = 5,
+//   BEAMHASHII = 6,
+//   ARGON2D = 7,
+//   RANDOMX = 8,
+//   PROGPOW = 9,
+//   CUCKAROO = 10,
+//   CUCKATOO = 11,
+//   BLAKE2S = 12,
+// }
+
+pub struct DpplnsCoinConfig {
+  coin_id: i16,
+  algo: String,
+  normal_fee: f64,
+  solo_fee: f64,
+  party_fee: f64,
+  window_length: u64,
+}
+impl DpplnsCoinConfig {
+  fn new() -> DpplnsCoinConfig {
+    DpplnsCoinConfig {
+      coin_id: 0,
+      algo: "".to_string(),
+      normal_fee: 1.0,
+      solo_fee: 1.0,
+      party_fee: 1.0,
+      window_length: 300,
+    }
+  }
 }
 
-// pub struct Coin{
-//   id: i16,
-//   algo: i16 or string,
-
+// pub struct DpplnsConfigs {
+//   configs: HashMap<DpplnsCoinConfig>,
 // }
-// impl Coin{
-//   fn from_db(db_row: object)-> Coin{
-//     Coin{
-//       id: db_row.coin_id,
-//     }
+// impl DpplnsConfigs {
+//   fn new() -> DpplnsConfigs {
+//     //setup array
+//     let configs = Vec::new();
+//     let default = DpplnsCoinConfig::new();
+//     configs.push(default);
+//     // rvn
+//     let rvn = DpplnsCoinConfig::new();
+//     rvn.algo = "x16r".to_string();
+//     rvn.coin_id = 2500;
+//     configs.push(rvn);
+
+//     //nim
+//     let nim = DpplnsCoinConfig::new();
+//     nim.algo = "argon2d".to_string();
+//     nim.coin_id = 2500;
+//     configs.push(nim);
+//     //nim 2
+//     let nim = DpplnsCoinConfig::new();
+//     nim.algo = "argon3d".to_string();
+//     nim.coin_id = 2500;
+//     configs.push(nim);
+
+//     DpplnsConfigs { configs: configs }
 //   }
 // }
 
