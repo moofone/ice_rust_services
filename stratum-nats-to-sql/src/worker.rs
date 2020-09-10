@@ -21,10 +21,10 @@ pub fn stratum_disconnect_listener(
   //  grab a copy fo the pool to passed into the thread
   let mysql_pool = mysql_pool.clone();
   let subject;
-  if env == "dev" {
-    subject = format!("dev.stratum.disconnect.>");
-  } else {
+  if env == "prod" {
     subject = format!("stratum.disconnect.>");
+  } else {
+    subject = format!("{}.stratum.disconnect.>", env);
   }
   println!("listening to worker disconnects");
 
@@ -68,10 +68,10 @@ pub fn stratum_devfee_listener(
   //  grab a copy fo the pool to passed into the thread
   let mysql_pool = mysql_pool.clone();
   let subject;
-  if env == "dev" {
-    subject = format!("dev.stratum.devfee.>");
-  } else {
+  if env == "prod" {
     subject = format!("stratum.devfee.>");
+  } else {
+    subject = format!("{}.stratum.devfee.>", env);
   }
   println!("listening to worker devfees");
 

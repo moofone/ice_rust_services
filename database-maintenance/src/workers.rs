@@ -21,10 +21,10 @@ fn mysql_workers_cleanup_listener(
   //  grab a copy fo the pool to passed into the thread
   let mysql_pool = mysql_pool.clone();
   let subject;
-  if env == "dev" {
-    subject = format!("dev.events.maintenance.workers");
-  } else {
+  if env == "prod" {
     subject = format!("events.maintenance.workers");
+  } else {
+    subject = format!("{}.events.maintenance.workers", env);
   }
   let sub = match nc.queue_subscribe(&subject, "events_maintenance_workers_worker") {
     // let sub = match nc.subscribe(&subject) {

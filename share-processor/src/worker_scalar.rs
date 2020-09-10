@@ -251,10 +251,10 @@ fn share_listener(
 ) -> tokio::task::JoinHandle<()> {
   // connect to the nats channel
   let subject;
-  if env == "dev" {
-    subject = format!("dev.shares.>");
+  if env == "prod" {
+    subject = format!("shares.>");
   } else {
-    subject = format!("shares.2428");
+    subject = format!("{}.shares.2428", env);
   }
   let sub = match nc.subscribe(&subject) {
     // let sub = match nc.subscribe(&subject) {
@@ -267,7 +267,7 @@ fn share_listener(
   tokio::task::spawn(async move {
     println!("Listening for shares in worker_scalar");
     for msg in sub.messages() {
-      println!("share: {}", msg.subject);
+      // println!("share: {}", msg.subject);
       // parse the share into a minified object, then push it to the queue
       if let Ok(share) = parse_share_msg_into_minified(&msg.data) {
         let mut share_queues_map = share_queues_map.lock().unwrap();
@@ -325,7 +325,7 @@ fn trim_queue(
           time = share.timestamp;
         }
 
-        println!("Done Trimming - {}, queue-size: {}", k, share_queue.len());
+        // println!("Done Trimming - {}, queue-size: {}", k, share_queue.len());
       }
     }
   })

@@ -33,10 +33,10 @@ fn mysql_stratums_cleanup_listener(
   //  grab a copy fo the pool to passed into the thread
   let mysql_pool = mysql_pool.clone();
   let subject;
-  if env == "dev" {
-    subject = format!("dev.stratum.heartbeat.>");
-  } else {
+  if env == "prod" {
     subject = format!("stratum.heartbeat.>");
+  } else {
+    subject = format!("{}.stratum.heartbeat.>", env);
   }
   let sub = match nc.queue_subscribe(&subject, "stratum_heartbeat_worker") {
     // let sub = match nc.subscribe(&subject) {

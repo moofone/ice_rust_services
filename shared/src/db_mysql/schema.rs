@@ -5,6 +5,8 @@ table! {
     height -> Integer,
     time -> BigInt,
     userid -> Nullable<Integer>,
+    user_name -> Nullable<Text>,
+
     // workerid -> Nullable<Integer>,
     rigname -> Nullable<Text>,
     confirmations -> Nullable<Integer>,

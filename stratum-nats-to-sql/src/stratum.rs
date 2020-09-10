@@ -25,10 +25,10 @@ pub fn stratum_start_listener(
   //  grab a copy fo the pool to passed into the thread
   let mysql_pool = mysql_pool.clone();
   let subject;
-  if env == "dev" {
-    subject = format!("dev.stratum.start.>");
-  } else {
+  if env == "prod" {
     subject = format!("stratum.start.>");
+  } else {
+    subject = format!("{}stratum.start.>", env);
   }
   println!("listening to stratum starts");
 
@@ -66,10 +66,10 @@ pub fn stratum_heartbeat_listener(
   //  grab a copy fo the pool to passed into the thread
   let mysql_pool = mysql_pool.clone();
   let subject;
-  if env == "dev" {
-    subject = format!("dev.stratum.heartbeat.>");
-  } else {
+  if env == "prod" {
     subject = format!("stratum.heartbeat.>");
+  } else {
+    subject = format!("{}.stratum.heartbeat.>", env);
   }
   println!("listening to heartbeats");
   let sub = match nc.queue_subscribe(&subject, "stratum_heartbeat_worker") {

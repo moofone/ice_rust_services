@@ -60,6 +60,11 @@ pub mod accounts {
       .execute(conn)
       .map(|_| ())
   }
+
+  // get all accounts
+  pub fn get_all_accounts_mysql(conn: &MysqlConnection) -> Result<Vec<AccountMYSQL>, Error> {
+    accounts.load::<AccountMYSQL>(conn)
+  }
 }
 
 pub mod earnings {

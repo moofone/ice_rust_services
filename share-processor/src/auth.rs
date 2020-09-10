@@ -57,8 +57,10 @@ pub fn stratum_auth_listener(
   // println!("waiting on auth message");
   let mysql_pool = mysql_pool.clone();
   let subject;
-  if env == "dev" {
-    subject = format!("dev.stratum.auth.>");
+  if env == "prod" {
+    subject = format!("stratum.auth.>");
+  } else if env == "x" {
+    subject = format!("{}.stratum.auth.>", env);
   } else {
     subject = format!("stratum.auth.>");
   }
@@ -75,11 +77,11 @@ pub fn stratum_auth_listener(
     let mut counter = 0;
     println!("waiting for auth messages");
     for msg in sub.messages() {
-      // counter += 1;
-      // if counter % 100 == 0 {
-      println!("Msg: {} (printing every 100)", msg.subject);
-      // counter = 0;
-      // }
+      counter += 1;
+      if counter % 100 == 0 {
+        println!("Msg: {} (printing every 100)", msg.subject);
+        counter = 0;
+      }
 
       //  grab a copy fo the pool to passed into the thread
       let mysql_pool = mysql_pool.clone();
@@ -103,7 +105,7 @@ pub fn stratum_auth_listener(
       // grab a mysql pool connection
       let conn = match mysql_pool.get() {
         Ok(conn) => {
-          println!("got conn");
+          // println!("got conn");
           conn
         }
         Err(e) => {
@@ -269,7 +271,7 @@ fn parse_share_msg(msg: &Vec<u8>) -> Result<ShareNats, rmp_serde::decode::Error>
   let share: ShareNats = match rmp_serde::from_read_ref(&msg) {
     Ok(share) => share,
     Err(e) => {
-      println!("Error parsing share. e: {}", e);
+      println!("Error parsing share. e: {}, bytes: {:?}", e, &msg);
       return Err(e);
     }
   };

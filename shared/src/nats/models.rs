@@ -267,7 +267,7 @@ pub struct StratumHeartbeatNats {
 // stratum model
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StratumDisconnectNats {
-  pub username: String,
+  pub rig_name: String,
   pub uuid: String,
 }
 
