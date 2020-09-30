@@ -2,14 +2,14 @@ use futures::future;
 use futures::join;
 mod server;
 mod server2;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::task;
-use tokio::time;
 extern crate shared;
 use shared::nats::establish_nats_connection;
 use shared::nats::NatsConnection;
+use tokio::time::{interval_at, Duration, Instant};
 
 // type ArcVecDeque = Arc<Mutex<VecDeque<i32>>>;
 #[tokio::main]
@@ -30,7 +30,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       println!("received {}", &msg);
       Ok(())
     });
-  // Ok(())
+
+  // type ShareQueueType = VecDeque<i32>;
+  // type ShareQueuesMapType = HashMap<String, ShareQueueType>;
+  // type ShareQueuesMapArcType = Arc<Mutex<ShareQueuesMapType>>;
+  // // type ShareQueueArc = Arc<Mutex<VecDeque<ShareQueueMinifiedObj>>>;
+  // struct SQM{HashMap<String, ShareQueueType>};
+  // impl SQM {
+  //   fn add(&self, key: &String, val: &ShareQueueType) {
+  //     self(insert(key, val));
+  //   }
+  // }
+  // let loop1 = loop1();
+  // let loop2 = loop2();
+  // join!(loop1, loop2);
+  Ok(())
   // let items: server::ArcVecDeque = Arc::new(Mutex::new(VecDeque::new()));
 
   // let arr = vec![
@@ -48,7 +62,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   // let s1 = server::run_server(items.clone());
   // join!(s1, s2);
 }
-
+async fn loop1() {
+  let mut interval = interval_at(
+    Instant::now() + Duration::from_millis(2 * 1000),
+    Duration::from_millis(2 * 1000),
+  );
+  loop {
+    interval.tick().await;
+    println!("loop 1");
+  }
+}
+async fn loop2() {
+  let mut interval = interval_at(
+    Instant::now() + Duration::from_millis(2 * 1000),
+    Duration::from_millis(2 * 1000),
+  );
+  loop {
+    interval.tick().await;
+    println!("loop 2");
+  }
+}
 pub fn add(a: i32, b: i32) -> i32 {
   a + b
 }

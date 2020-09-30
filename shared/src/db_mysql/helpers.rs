@@ -279,7 +279,6 @@ pub mod workers {
     _worker: WorkerMYSQLInsertable,
   ) -> Result<WorkerMYSQL, Error> {
     insert_into(workers).values(&_worker).execute(conn)?;
-
     workers
       .filter(uuid.eq(_worker.uuid))
       .first::<WorkerMYSQL>(conn)

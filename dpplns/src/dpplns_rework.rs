@@ -32,6 +32,7 @@ final goal (ShareMin => min usable data for a share that will go into the queue)
 extern crate shared;
 use diesel::prelude::*;
 use dotenv::dotenv;
+use futures::{join, Future};
 use std::env;
 
 use shared::db_mysql::{
@@ -54,12 +55,12 @@ use shared::db_pg::{
 // use shared::enums::*;
 // use sentry::{capture_message, integrations::failure::capture_error, Level};
 // use std::collections::{HashMap, VecDeque};
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time::{interval_at, Duration, Instant};
-
 // constants
 const NORMAL_FEE: f64 = 0.01;
 const SOLO_FEE: f64 = 0.02;
@@ -154,131 +155,6 @@ impl From<ShareNats> for ShareMinified {
 //     }
 //   }
 // }
-fn get_time_current_s() -> u64 {
-  SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_secs()
-}
-fn get_time_current_ms() -> u128 {
-  SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_millis()
-}
-#[derive(Clone)]
-struct SharesAndScores {
-  shares_queue: Arc<Mutex<ShareQueueType>>,
-  user_scores_map: Arc<Mutex<UserScoreMapType>>,
-}
-impl SharesAndScores {
-  fn new() -> Self {
-    Self {
-      shares_queue: Arc::new(Mutex::new(ShareQueueType::new())),
-      user_scores_map: Arc::new(Mutex::new(UserScoreMapType::new())),
-    }
-  }
-  fn trim_share_queue(&self) {
-    if let Ok(mut shares_queue) = self.shares_queue.lock() {
-      let time_current = get_time_current_s();
-      let time_current_ms = get_time_current_ms();
-      // let start = time_current;
-      let time_window_start = time_current - WINDOW_LENGTH;
-      if shares_queue.len() == 0 {
-        println!("No shares to decay in queue");
-        return;
-      }
-
-      // trim the queue first to avoid adding shares we dont want
-      let mut time = shares_queue.front().unwrap().time;
-      let mut share: ShareMinified;
-      //todo
-      /*
-         calc the shortest trim time
-         while time < shortest trim time
-            check time against coin_id trim time
-            trim if needed
-      */
-      // println!("time: {}, time_window_start: {}", time, time_window_start);
-      while time < time_window_start as i32 && shares_queue.len() > 0 {
-        share = shares_queue.pop_front().unwrap();
-        time = share.time;
-      }
-
-      println!(
-        "Done Trimming, queue-size: {}, took: {}ms",
-        shares_queue.len(),
-        get_time_current_ms() - time_current_ms,
-      );
-    }
-  }
-  fn rebuild_decayed_map(&self) {
-    let time_current = get_time_current_s();
-    let time_current_ms = get_time_current_ms();
-    // create a fresh map
-    if let Ok(mut user_scores_map) = self.user_scores_map.lock() {
-      if let Ok(mut shares_queue) = self.shares_queue.lock() {
-        user_scores_map.clear(); // = UserScoreMapType::new();
-
-        // loop through the shares and add to the map with the new decay'ed score
-        for share in shares_queue.iter() {
-          // println!("payout: {}", share.share_payout);
-          let mut new_share = share.clone();
-          new_share.share_payout *= calc_decay_factor(time_current as i64, new_share.time as i64);
-          // println!("share:{:?}", new_share);
-
-          self.add_share_to_map(&new_share);
-        }
-
-        println!(
-          "Done Decaying, map-size: {}, queue-size: {}, took: {}ms",
-          user_scores_map.len(),
-          shares_queue.len(),
-          SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-            - time_current_ms,
-        );
-      }
-    }
-  }
-  // add a share to the map but increaking the user's value
-  fn add_share_to_map(&self, share_obj: &ShareMinified) {
-    let mode = share_obj.mode.to_string();
-    // let mode = "normal".to_string();
-    let algo = share_obj.algo.to_string();
-    // let algo = "argon2d".to_string();
-    // generate a key for the dictionary based on the share
-    let key = dict_key_gen(
-      &mode,
-      share_obj.coin_id as i32,
-      &algo,
-      &share_obj.party_pass,
-    );
-    if let Ok(mut user_scores_map) = self.user_scores_map.lock() {
-      // add coin-algo if it doesnt already exist
-      // map.entry(key.to_string()).or_insert(HashMap::new());
-      if !user_scores_map.contains_key(&key) {
-        // let init_map: HashMap<i32, f64> = HashMap::new();
-        user_scores_map.insert(key.to_string(), HashMap::new());
-      }
-
-      // set the user_scores map to the proper key
-      let user_scores = user_scores_map.get_mut(&key).unwrap();
-
-      // update user score if exists , if not add it
-      *user_scores
-        .entry(format!("{}-{}", share_obj.coin_id, share_obj.user_name))
-        .or_insert(0.0) += share_obj.share_payout;
-      // if let Some(user) = user_scores.get_mut(&share_obj.user_id) {
-      //   *user += share_obj.share_payout as f64
-      // } else {
-      //   user_scores.insert(share_obj.user_id, share_obj.share_payout as f64);
-      // }
-    }
-  }
-}
 
 // hashmap to hold userid's with the current dpplns scores
 type UserScoreMapType = HashMap<String, HashMap<String, f32>>;
@@ -287,20 +163,22 @@ type ShareQueueType = VecDeque<ShareMinified>;
 // hashmap to hold earnings for each block
 type EarningMapType = HashMap<String, f32>;
 
-struct DPPLNS_SERVER {
+struct DpplnsServer {
   env: String,
   shares_queue: Arc<Mutex<ShareQueueType>>,
   user_scores_map: Arc<Mutex<UserScoreMapType>>,
   nc: nats::Connection,
   mysql_pool: MysqlPool,
+  jobs: Vec<tokio::task::JoinHandle<()>>,
+  test: Arc<Mutex<Vec<String>>>,
 }
 
-impl DPPLNS_SERVER {
-  fn new() -> DPPLNS_SERVER {
+impl DpplnsServer {
+  fn new() -> DpplnsServer {
+    // setup dotenv
     dotenv().ok();
-    let env = env::var("ENVIRONMENT_MODE").expect("ENVIRONMENT_MODE not set");
-    let shares_queue = Arc::new(Mutex::new(ShareQueueType::new()));
-    let user_scores_map = Arc::new(Mutex::new(UserScoreMapType::new()));
+
+    // setup nats
     let nc = match establish_nats_connection() {
       Ok(n) => n,
       Err(e) => {
@@ -308,220 +186,247 @@ impl DPPLNS_SERVER {
         panic!("Nats did not connect: {}", e);
       }
     };
+
     //setup msqyl
     let mysql_pool = match establish_mysql_connection() {
       Ok(p) => p,
       Err(e) => panic!("MYSQL FAILED: {}", e),
     };
-    DPPLNS_SERVER {
-      env: env,
-      shares_queue: shares_queue,
-      user_scores_map: user_scores_map,
+
+    // return the initialized dpplns server
+    DpplnsServer {
+      env: env::var("ENVIRONMENT_MODE").expect("ENVIRONMENT_MODE not set"),
+      shares_queue: Arc::new(Mutex::new(ShareQueueType::new())),
+      user_scores_map: Arc::new(Mutex::new(UserScoreMapType::new())),
       nc: nc,
       mysql_pool: mysql_pool,
+      jobs: Vec::new(),
+      test: Arc::new(Mutex::new(Vec::new())),
+    }
+  }
+  async fn run(&mut self) -> Result<(), std::io::Error> {
+    self.create_share_listener_job("1".to_string());
+    self.create_share_listener_job("2".to_string());
+
+    // join!(task_1, task_2);
+    // }
+    for task in &mut self.jobs {
+      task.await.unwrap();
+    }
+    Ok(())
+  }
+  fn create_share_listener_job(&mut self, id: String) {
+    {
+      println!("id: {}", &id);
+      // for coin in coins {
+      // let channel = format!("shares.>");
+      let subject;
+      if self.env == "prod" {
+        subject = format!("shares.2423");
+      } else {
+        subject = format!("{}.shares.2423", self.env);
+      }
+      let sub = match self.nc.subscribe(">") {
+        Ok(s) => s,
+        Err(e) => panic!("Nats sub to shares failed: {}", e),
+      };
+      let shares = self.shares_queue.clone();
+      let user_scores = self.user_scores_map.clone();
+      let test = self.test.clone();
+      let mut task = tokio::spawn(async move {
+        for msg in sub.messages() {
+          println!("id: {}, msg: {}", id.clone().to_string(), msg.subject);
+          let mut test = test.lock().unwrap();
+          test.push(id.clone());
+          println!("test : {:?}", test);
+          // match parse_share(&msg.data) {
+          //   Ok(share) => {
+          //     let mut sha = shares.lock().unwrap();
+          //     let mut sco = user_scores.lock().unwrap();
+          //     handle_share(&mut *sco, &mut *sha, share);
+          //     // handle_share(&mut *sha, share);
+          //   }
+          //   Err(err) => {
+          //     println!("share parse failed: {}", err);
+          //     // capture_message(&format!("Share parse failed: {}", err), Level::Error);
+          //     ()
+          //   }
+          // };
+        }
+      });
+      // &task
+      self.jobs.push(task);
+      // }
     }
   }
 }
 
 #[tokio::main]
-async fn main() {
-  dotenv().ok();
-  let env = env::var("ENVIRONMENT_MODE").expect("ENVIRONMENT_MODE not set");
-  println!("Running in mode: {}", &env);
-  // let _guard =
-  //   sentry::init("https://689607b053ac4fbb81ee82a08a8aa18a@sentry.watlab.icemining.ca/9");
-
-  // let coin_configs = DpplnsConfigs::new();
-  // create base structs to be used across threads
-  let shares_queue = Arc::new(Mutex::new(ShareQueueType::new()));
-  let user_scores_map = Arc::new(Mutex::new(UserScoreMapType::new()));
-
-  // {
-  //   // lock the shares and scores, load last window from database
-  //   let mut sha = shares_queue.lock().unwrap();
-  //   let mut sco = user_scores_map.lock().unwrap();
-  //   match load_shares_from_db(&mut *sha, &mut *sco) {
-  //     Ok(_) => rebuild_decayed_map(&mut *sco, &mut *sha),
-  //     Err(e) => println!("{}", e),
-  //   };
-  // }
-
-  // capture_message("DPPLNS loaded shares and is now live", Level::Info);
-
-  // Initilize the nats connection
-  let nc = match establish_nats_connection() {
-    Ok(n) => n,
-    Err(e) => {
-      println!("Nats did not connect: {}", e);
-      panic!("Nats did not connect: {}", e);
-    }
-  };
-
-  //setup msqyl
-  let mysql_pool = match establish_mysql_connection() {
-    Ok(p) => p,
-    Err(e) => panic!("MYSQL FAILED: {}", e),
-  };
+async fn main() -> Result<(), std::io::Error> {
+  // setup dpplnsserver
+  let mut dpplns = DpplnsServer::new();
+  dpplns.run().await?;
+  Ok(())
 
   // setup threads array so the program doesnt end right away
-  let mut tasks = Vec::new();
+  // let mut tasks = Vec::new();
 
-  //-----------------------SHARES LISTENER--------------------------------
-  {
-    // for coin in coins {
-    // let channel = format!("shares.>");
-    let subject;
-    if env == "prod" {
-      subject = format!("shares.2423");
-    } else {
-      subject = format!("{}.shares.2423", env);
-    }
-    let sub = match nc.subscribe(&subject) {
-      Ok(s) => s,
-      Err(e) => panic!("Nats sub to shares failed: {}", e),
-    };
-    let shares = shares_queue.clone();
-    let user_scores = user_scores_map.clone();
-    let share_task = tokio::spawn(async move {
-      for msg in sub.messages() {
-        match parse_share(&msg.data) {
-          Ok(share) => {
-            let mut sha = shares.lock().unwrap();
-            let mut sco = user_scores.lock().unwrap();
-            handle_share(&mut *sco, &mut *sha, share);
-            // handle_share(&mut *sha, share);
-          }
-          Err(err) => {
-            println!("share parse failed: {}", err);
-            // capture_message(&format!("Share parse failed: {}", err), Level::Error);
-            ()
-          }
-        };
-      }
-    });
-    tasks.push(share_task);
-    // }
-  }
-  //-----------------------BLOCKS LISTENER----------------------------
-  {
-    // grab a copy of user_users to be passed into listener thread
-    let user_scores = user_scores_map.clone();
-    // listen to scheduled events
+  // //-----------------------SHARES LISTENER--------------------------------
+  // {
+  //   // for coin in coins {
+  //   // let channel = format!("shares.>");
+  //   let subject;
+  //   if env == "prod" {
+  //     subject = format!("shares.2423");
+  //   } else {
+  //     subject = format!("{}.shares.2423", env);
+  //   }
+  //   let sub = match nc.subscribe(&subject) {
+  //     Ok(s) => s,
+  //     Err(e) => panic!("Nats sub to shares failed: {}", e),
+  //   };
+  //   let shares = shares_queue.clone();
+  //   let user_scores = user_scores_map.clone();
+  //   let share_task = tokio::spawn(async move {
+  //     for msg in sub.messages() {
+  //       match parse_share(&msg.data) {
+  //         Ok(share) => {
+  //           let mut sha = shares.lock().unwrap();
+  //           let mut sco = user_scores.lock().unwrap();
+  //           handle_share(&mut *sco, &mut *sha, share);
+  //           // handle_share(&mut *sha, share);
+  //         }
+  //         Err(err) => {
+  //           println!("share parse failed: {}", err);
+  //           // capture_message(&format!("Share parse failed: {}", err), Level::Error);
+  //           ()
+  //         }
+  //       };
+  //     }
+  //   });
+  //   tasks.push(share_task);
+  //   // }
+  // }
+  // //-----------------------BLOCKS LISTENER----------------------------
+  // {
+  //   // grab a copy of user_users to be passed into listener thread
+  //   let user_scores = user_scores_map.clone();
+  //   // listen to scheduled events
 
-    let subject;
-    if env == "prod" {
-      subject = format!("events.dpplns");
-    } else {
-      subject = format!("{}.events.dpplns", env);
-    }
-    let sub = match nc.queue_subscribe(&subject, "dpplns_worker") {
-      Ok(s) => s,
-      Err(e) => panic!("Nats sub to shares failed: {}", e),
-    };
-    // spawn a new task to listen for new blocks
-    let block_task = tokio::spawn({
-      async move {
-        for _ in sub.messages() {
-          // let time_current_ms = SystemTime::now()
-          // .duration_since(UNIX_EPOCH)
-          // .unwrap()
-          // .as_millis();
+  //   let subject;
+  //   if env == "prod" {
+  //     subject = format!("events.dpplns");
+  //   } else {
+  //     subject = format!("{}.events.dpplns", env);
+  //   }
+  //   let sub = match nc.queue_subscribe(&subject, "dpplns_worker") {
+  //     Ok(s) => s,
+  //     Err(e) => panic!("Nats sub to shares failed: {}", e),
+  //   };
+  //   // spawn a new task to listen for new blocks
+  //   let block_task = tokio::spawn({
+  //     async move {
+  //       for _ in sub.messages() {
+  //         // let time_current_ms = SystemTime::now()
+  //         // .duration_since(UNIX_EPOCH)
+  //         // .unwrap()
+  //         // .as_millis();
 
-          // ignore the message and run
-          println!("dpplns event received, running");
+  //         // ignore the message and run
+  //         println!("dpplns event received, running");
 
-          // grab a mysql pool connection
-          let conn = match mysql_pool.get() {
-            Ok(conn) => conn,
-            Err(e) => {
-              // crash and sentry BIG ISSUE
-              println!("Error mysql conn. e: {}", e);
-              panic!("error getting mysql connection. e: {}", e);
-            }
-          };
+  //         // grab a mysql pool connection
+  //         let conn = match mysql_pool.get() {
+  //           Ok(conn) => conn,
+  //           Err(e) => {
+  //             // crash and sentry BIG ISSUE
+  //             println!("Error mysql conn. e: {}", e);
+  //             panic!("error getting mysql connection. e: {}", e);
+  //           }
+  //         };
 
-          // get new blocks within the hour
-          let blocks: Vec<BlockMYSQL> = match get_blocks_unprocessed_mysql(&conn) {
-            Ok(blocks) => blocks,
-            Err(e) => {
-              println!("Error getting blocks. e: {}", e);
-              panic!("error... e: {}", e);
-            }
-          };
+  //         // get new blocks within the hour
+  //         let blocks: Vec<BlockMYSQL> = match get_blocks_unprocessed_mysql(&conn) {
+  //           Ok(blocks) => blocks,
+  //           Err(e) => {
+  //             println!("Error getting blocks. e: {}", e);
+  //             panic!("error... e: {}", e);
+  //           }
+  //         };
 
-          for block in blocks {
-            if block.coin_id != 2423 {
-              continue;
-            }
-            // set the block in mysql to unconfirmed, with 0 confirmations
-            match update_block_to_processed_mysql(&conn, &block) {
-              Ok(_) => (),
-              Err(e) => println!("Update block failed. block: {}, e: {}", &block.id, e),
-            }
-            let sco = user_scores.lock().unwrap();
-            match handle_block(&block, &sco, &conn) {
-              Ok(_) => (),
-              Err(e) => println!("block failed. e: {}", e),
-            }
-          }
+  //         for block in blocks {
+  //           if block.coin_id != 2423 {
+  //             continue;
+  //           }
+  //           // set the block in mysql to unconfirmed, with 0 confirmations
+  //           match update_block_to_processed_mysql(&conn, &block) {
+  //             Ok(_) => (),
+  //             Err(e) => println!("Update block failed. block: {}, e: {}", &block.id, e),
+  //           }
+  //           let sco = user_scores.lock().unwrap();
+  //           match handle_block(&block, &sco, &conn) {
+  //             Ok(_) => (),
+  //             Err(e) => println!("block failed. e: {}", e),
+  //           }
+  //         }
 
-          // println!(
-          //   "Done with dpplns event, took: {}ms",
-          //   SystemTime::now()
-          //     .duration_since(UNIX_EPOCH)
-          //     .unwrap()
-          //     .as_millis()
-          //     - time_current_ms,
-          // );
-        }
-      }
-    });
-    tasks.push(block_task);
-  }
+  //         // println!(
+  //         //   "Done with dpplns event, took: {}ms",
+  //         //   SystemTime::now()
+  //         //     .duration_since(UNIX_EPOCH)
+  //         //     .unwrap()
+  //         //     .as_millis()
+  //         //     - time_current_ms,
+  //         // );
+  //       }
+  //     }
+  //   });
+  //   tasks.push(block_task);
+  // }
 
-  // ----------------------------TRIM TIMER----------------------------------
-  {
-    let shares = shares_queue.clone();
-    let trim_task = tokio::spawn(async move {
-      let mut interval = interval_at(
-        Instant::now() + Duration::from_millis(TRIM_INTERVAL * 1000),
-        Duration::from_millis(TRIM_INTERVAL * 1000),
-      );
+  // // ----------------------------TRIM TIMER----------------------------------
+  // {
+  //   let shares = shares_queue.clone();
+  //   let trim_task = tokio::spawn(async move {
+  //     let mut interval = interval_at(
+  //       Instant::now() + Duration::from_millis(TRIM_INTERVAL * 1000),
+  //       Duration::from_millis(TRIM_INTERVAL * 1000),
+  //     );
 
-      loop {
-        interval.tick().await;
+  //     loop {
+  //       interval.tick().await;
 
-        let mut sha = shares.lock().unwrap();
-        trim_shares_queue(&mut *sha);
-        //std::thread::sleep(std::time::Duration::from_millis(1));
-      }
-    });
-    tasks.push(trim_task);
-  }
-  //--------------------------UPDATE MAP TIMER----------------------------
-  {
-    let shares = shares_queue.clone();
-    let user_scores = user_scores_map.clone();
-    let decay_task = tokio::spawn(async move {
-      let mut interval = interval_at(
-        Instant::now() + Duration::from_millis(DECAY_INTERVAL * 1000),
-        Duration::from_millis(DECAY_INTERVAL * 1000),
-      );
+  //       let mut sha = shares.lock().unwrap();
+  //       trim_shares_queue(&mut *sha);
+  //       //std::thread::sleep(std::time::Duration::from_millis(1));
+  //     }
+  //   });
+  //   tasks.push(trim_task);
+  // }
+  // //--------------------------UPDATE MAP TIMER----------------------------
+  // {
+  //   let shares = shares_queue.clone();
+  //   let user_scores = user_scores_map.clone();
+  //   let decay_task = tokio::spawn(async move {
+  //     let mut interval = interval_at(
+  //       Instant::now() + Duration::from_millis(DECAY_INTERVAL * 1000),
+  //       Duration::from_millis(DECAY_INTERVAL * 1000),
+  //     );
 
-      loop {
-        interval.tick().await;
+  //     loop {
+  //       interval.tick().await;
 
-        let mut sha = shares.lock().unwrap();
-        let mut sco = user_scores.lock().unwrap();
-        rebuild_decayed_map(&mut *sco, &mut *sha);
-      }
-    });
-    tasks.push(decay_task);
-  }
+  //       let mut sha = shares.lock().unwrap();
+  //       let mut sco = user_scores.lock().unwrap();
+  //       rebuild_decayed_map(&mut *sco, &mut *sha);
+  //     }
+  //   });
+  //   tasks.push(decay_task);
+  // }
 
-  for handle in tasks {
-    handle.await.unwrap();
-  }
+  // for handle in tasks {
+  //   handle.await.unwrap();
+  // }
 }
 
 // main dpplns function, takes in a block and generates the earnings for each user

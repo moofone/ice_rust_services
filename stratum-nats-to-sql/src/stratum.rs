@@ -28,7 +28,7 @@ pub fn stratum_start_listener(
   if env == "prod" {
     subject = format!("stratum.start.>");
   } else {
-    subject = format!("{}stratum.start.>", env);
+    subject = format!("{}.stratum.start.>", env);
   }
   println!("listening to stratum starts");
 
@@ -128,7 +128,27 @@ fn handle_stratum_start(pooled_conn: &MysqlConnection, new_msg: &StratumStartNat
   };
   match insert_stratum_mysql(pooled_conn, &stratum_row) {
     Ok(_) => (),
-    Err(err) => println!("Error: {}", err),
+    Err(err) => {
+      println!("Error: {}", err);
+      let heartbeat_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i32;
+      match update_stratum_by_pid_mysql(
+        pooled_conn,
+        new_msg.pid,
+        &new_msg.stratum_id,
+        &new_msg.symbol,
+        heartbeat_time,
+        0,
+      ) {
+        Ok(_) => (),
+        Err(e) => println!(
+          "Failed to update stratum with heartbeat of pid: {}, e: {}",
+          new_msg.pid, e
+        ),
+      }
+    }
   };
   update_workers_on_stratum_connect_mysql(pooled_conn, &stratum_row.stratum_id, new_msg.coin_id)
     .unwrap();

@@ -56,13 +56,12 @@ pub fn stratum_auth_listener(
   //  grab a copy fo the pool to passed into the thread
   // println!("waiting on auth message");
   let mysql_pool = mysql_pool.clone();
+
   let subject;
   if env == "prod" {
     subject = format!("stratum.auth.>");
-  } else if env == "x" {
-    subject = format!("{}.stratum.auth.>", env);
   } else {
-    subject = format!("stratum.auth.>");
+    subject = format!("{}.stratum.auth.>", env);
   }
   let sub = match nc.queue_subscribe(&subject, "stratum_auth_worker") {
     // let sub = match nc.subscribe(&subject) {
@@ -167,7 +166,10 @@ fn get_account_or_add_to_queue(
         // return Some(a)
       } // found
       Err(e) => {
-        println!("Account not found, adding to queue - {}", e);
+        // println!(
+        //   "Account not found, adding to queue - {},{},",
+        //   &auth_msg.user_name, e
+        // );
         // not found
         // add it to the queue to be added
         // let user_name
@@ -179,7 +181,7 @@ fn get_account_or_add_to_queue(
         account_queue
           .entry(auth.msg.user_name.to_string())
           .or_insert(auth);
-        println!("account queue length : {}", account_queue.len());
+        // println!("account queue length : {}", account_queue.len());
       }
     }
   // gen_account.owner_id = account.id;
@@ -202,10 +204,10 @@ fn share_listener(
 ) -> tokio::task::JoinHandle<()> {
   // connect to the nats channel
   let subject;
-  if env == "dev" {
-    subject = format!("dev.shares.>");
+  if env == "prod" {
+    subject = format!("stratum.shares.>");
   } else {
-    subject = format!("shares.2428");
+    subject = format!("{}.stratum.shares.>", env);
   }
   let sub = match nc.subscribe(&subject) {
     // let sub = match nc.subscribe(&subject) {
@@ -219,12 +221,18 @@ fn share_listener(
   tokio::task::spawn(async move {
     println!("Listening for shares for auth");
     for msg in sub.messages() {
-      println!("SHARE!!!!!!");
+      // println!("SHARE!!!!!!: {}", msg.subject);
       //TODO parse the share, check the map, if its needs to be inserted into the accounts table, do taht too
       if let Ok(share) = parse_share_msg(&msg.data) {
         let mut account_queue = account_queue.lock().unwrap();
         if !account_queue.is_empty() {
+          // println!(
+          //   "account queue not empty, share  being checked: {}",
+          //   &share.user_name
+          // );
+          // println!("Share username: {}", share.user_name);
           if let Some(account) = account_queue.get_mut(&share.user_name) {
+            // println!("share found in accoutn queue");
             account.share_count += 1;
 
             if account.share_count >= SHARE_THRESHOLD {
@@ -240,6 +248,7 @@ fn share_listener(
                   panic!("error getting mysql connection e: {}",);
                 }
               };
+              // println!("Share threshold met, insertin accoutn: {}", share.user_name);
               match insert_account_mysql(&conn, &share.user_name, share.coin_id as i32) {
                 Ok(a) => {
                   let gen_account = GenericAccount {
@@ -322,6 +331,7 @@ fn insert_or_update_worker(
         worker.time = Some(new_msg.time);
         worker.pid = Some(new_msg.pid);
         worker.stratum_id = new_msg.stratum_id.to_string();
+        worker.party_pass = Some(new_msg.party_pass.to_string());
         // println!("Updating worker: {}", worker.worker);
         match update_worker_mysql(pooled_conn, &worker) {
           Ok(w) => w,
@@ -354,13 +364,18 @@ fn insert_or_update_worker(
     time: new_msg.time,
     pid: new_msg.pid,
     name: new_msg.user_name.to_string(),
+    party_pass: new_msg.party_pass.to_string(),
     last_share_time: None,
     shares_per_min: None,
   };
+  let rigname = worker.worker.to_string();
+  let uuid = worker.uuid.to_string();
+  println!("about to insert worker.  {}, {}", rigname, uuid);
+
   let new_worker = match insert_worker_mysql(pooled_conn, worker) {
     Ok(w) => w,
     Err(e) => {
-      println!("Failed to insert worker. e: {}", e);
+      println!("Failed to insert worker. e: {}, {}, {}", e, rigname, uuid);
       return Err(format!("Failed to insert worker. e: {}", e))?;
     }
   };

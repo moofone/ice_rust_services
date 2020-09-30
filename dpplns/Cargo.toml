@@ -8,7 +8,7 @@ edition = "2018"
 
 [[bin]]
 name = "dpplns"
-path = "src/dpplns.rs"
+path = "src/dpplns_rework_arcstruct.rs"
 
 [dependencies]
 futures = "0.3.1"

@@ -4,6 +4,7 @@ table! {
     coin_id -> Integer,
     height -> Integer,
     time -> BigInt,
+    // #[sql_name = "user_id"]
     userid -> Nullable<Integer>,
     user_name -> Nullable<Text>,
 
@@ -67,6 +68,7 @@ table! {
 table! {
   accounts (id){
     id -> Integer,
+    // #[sql_name = "coin_id"]
     coinid -> Integer,
     balance -> Nullable<Double>,
     username -> Text,
@@ -92,31 +94,31 @@ table! {
   }
 }
 
-table! {
-  workers(id){
-    id -> Int4,
-    coinid -> Int2,
-    userid -> Int4,
-    worker -> Text,
-    hashrate -> Double,
-    difficulty -> Double,
-    owner_id -> Int4,
-    owner_type -> Text,
-    uuid -> Text,
-    state -> Text,
-    ip -> Text,
-    version -> Text,
-    password -> Text,
-    algo -> Text,
-    mode -> Text,
-    stratum_id -> Text,
-    time -> Nullable<Int4>,
-    pid -> Nullable<Int4>,
-    name -> Nullable<Text>,
-    last_share_time -> Nullable<Int4>,
-    shares_per_min -> Nullable<Double>,
-  }
-}
+// table! {
+//   workers(id){
+//     id -> Int4,
+//     coinid -> Int2,
+//     userid -> Int4,
+//     worker -> Text,
+//     hashrate -> Double,
+//     difficulty -> Double,
+//     owner_id -> Int4,
+//     owner_type -> Text,
+//     uuid -> Text,
+//     state -> Text,
+//     ip -> Text,
+//     version -> Text,
+//     password -> Text,
+//     algo -> Text,
+//     mode -> Text,
+//     stratum_id -> Text,
+//     time -> Nullable<Int4>,
+//     pid -> Nullable<Int4>,
+//     name -> Nullable<Text>,
+//     last_share_time -> Nullable<Int4>,
+//     shares_per_min -> Nullable<Double>,
+//   }
+// }
 
 table! {
   coins(id){
@@ -160,5 +162,35 @@ table! {
     port -> Int2,
     symbol -> Text,
     stratum_id -> Text,
+  }
+}
+
+table! {
+  workers(id){
+    id -> Int4,
+    // #[sql_name = "coin_id"]
+    coinid -> Int2,
+    // #[sql_name = "user_id"]
+    userid -> Int4,
+    // #[sql_name = "rigname"]
+    worker -> Text,
+    hashrate -> Double,
+    difficulty -> Double,
+    owner_id -> Int4,
+    owner_type -> Text,
+    uuid -> Text,
+    state -> Text,
+    ip -> Text,
+    version -> Text,
+    password -> Text,
+    algo -> Text,
+    mode -> Text,
+    stratum_id -> Text,
+    time -> Nullable<Int4>,
+    pid -> Nullable<Int4>,
+    name -> Nullable<Text>,
+    party_pass -> Nullable<Text>,
+    last_share_time -> Nullable<Int4>,
+    shares_per_min -> Nullable<Double>,
   }
 }

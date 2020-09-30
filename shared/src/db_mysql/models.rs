@@ -338,6 +338,7 @@ pub struct WorkerMYSQL {
   pub time: Option<i32>,
   pub pid: Option<i32>,
   pub name: Option<String>,
+  pub party_pass: Option<String>,
   pub last_share_time: Option<i32>,
   pub shares_per_min: Option<f64>,
 }
@@ -363,6 +364,7 @@ pub struct WorkerMYSQLInsertable {
   pub time: i32,
   pub pid: i32,
   pub name: String,
+  pub party_pass: String,
   pub last_share_time: Option<i32>,
   pub shares_per_min: Option<f64>,
 }

@@ -85,24 +85,6 @@ struct ShareMinified {
   compressed: bool,
   // decay_counter: i16,
 }
-// impl ShareMinified {
-//   fn mode_to_string(&self) -> String {
-//     match self.mode {
-//       0 => "normal".to_string(),
-//       1 => "solo".to_string(),
-//       2 => "party".to_string(),
-//       _ => "invalid".to_string(),
-//     }
-//   }
-
-//   fn algo_to_string(&self) -> String {
-//     match self.algo {
-//       0 => "blake2s".to_string(),
-//       1 => "argon2d".to_string(),
-//       _ => "invalid".to_string(),
-//     }
-//   }
-// }
 
 // convert incoming shareNats into shareminified
 impl From<ShareNats> for ShareMinified {
@@ -276,6 +258,13 @@ impl SharesAndScores {
       // } else {
       //   user_scores.insert(share_obj.user_id, share_obj.share_payout as f64);
       // }
+    }
+  }
+
+  // adds a minified share to the queue
+  fn add_share_to_queue(share: ShareMinified) {
+    if let Ok(mut shares_queue) = self.shares_queue.lock() {
+      shares_queue.push_back(share);
     }
   }
 }
@@ -904,90 +893,9 @@ fn calc_score(
   share_payout as f32
 }
 
-// adds a minified share to the queue
-fn add_share_to_queue(shares_queue: &mut ShareQueueType, share: ShareMinified) {
-  shares_queue.push_back(share);
-}
-
-// add a share to the map but increaking the user's value
-fn add_share_to_map(map: &mut UserScoreMapType, share_obj: &ShareMinified) {
-  let mode = share_obj.mode.to_string();
-  // let mode = "normal".to_string();
-  let algo = share_obj.algo.to_string();
-  // let algo = "argon2d".to_string();
-  // generate a key for the dictionary based on the share
-  let key = dict_key_gen(
-    &mode,
-    share_obj.coin_id as i32,
-    &algo,
-    &share_obj.party_pass,
-  );
-
-  // add coin-algo if it doesnt already exist
-  // map.entry(key.to_string()).or_insert(HashMap::new());
-  if !map.contains_key(&key) {
-    // let init_map: HashMap<i32, f64> = HashMap::new();
-    map.insert(key.to_string(), HashMap::new());
-  }
-
-  // set the user_scores map to the proper key
-  let user_scores = map.get_mut(&key).unwrap();
-
-  // update user score if exists , if not add it
-  *user_scores
-    .entry(format!("{}-{}", share_obj.coin_id, share_obj.user_name))
-    .or_insert(0.0) += share_obj.share_payout;
-  // if let Some(user) = user_scores.get_mut(&share_obj.user_id) {
-  //   *user += share_obj.share_payout as f64
-  // } else {
-  //   user_scores.insert(share_obj.user_id, share_obj.share_payout as f64);
-  // }
-}
-
-// decay shares queue
-// loop through the queue and rebuild the map with new values
-fn rebuild_decayed_map(map: &mut UserScoreMapType, shares: &mut ShareQueueType) {
-  let time_current = SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_secs();
-  let time_current_ms = SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_millis();
-  // create a fresh map
-  *map = UserScoreMapType::new();
-
-  // loop through the shares and add to the map with the new decay'ed score
-  for share in shares.iter() {
-    // println!("payout: {}", share.share_payout);
-    let mut new_share = share.clone();
-    new_share.share_payout *= calc_decay_factor(time_current as i64, new_share.time as i64);
-    // println!("share:{:?}", new_share);
-
-    add_share_to_map(map, &new_share)
-  }
-
-  println!(
-    "Done Decaying, map-size: {}, queue-size: {}, took: {}ms",
-    map.len(),
-    shares.len(),
-    SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_millis()
-      - time_current_ms,
-  );
-  // println!("{:?}", map);
-}
-
 fn compress_shares_queue(shares: &mut ShareQueueType) {
   // look back n seconds
-  let time_lookback: i32 = SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_secs() as i32
-    - COMPRESSION_LOOKBACK as i32;
+  let time_lookback: i32 = get_time_current_s() as i32 - COMPRESSION_LOOKBACK as i32;
 
   // build map to hold values
   let mut map = HashMap::new();
@@ -1025,48 +933,6 @@ fn compress_shares_queue(shares: &mut ShareQueueType) {
   }
 
   // remove said shares and add them back up
-}
-fn trim_shares_queue(shares: &mut ShareQueueType) {
-  let time_current = SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_secs();
-  let time_current_ms = SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .unwrap()
-    .as_millis();
-  // let start = time_current;
-  let time_window_start = time_current - WINDOW_LENGTH;
-  if shares.len() == 0 {
-    println!("No shares to decay in queue");
-    return;
-  }
-
-  // trim the queue first to avoid adding shares we dont want
-  let mut time = shares.front().unwrap().time;
-  let mut share: ShareMinified;
-  //todo
-  /*
-     calc the shortest trim time
-     while time < shortest trim time
-        check time against coin_id trim time
-        trim if needed
-  */
-  // println!("time: {}, time_window_start: {}", time, time_window_start);
-  while time < time_window_start as i32 && shares.len() > 0 {
-    share = shares.pop_front().unwrap();
-    time = share.time;
-  }
-
-  println!(
-    "Done Trimming, queue-size: {}, took: {}ms",
-    shares.len(),
-    SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap()
-      .as_millis()
-      - time_current_ms,
-  );
 }
 
 #[cfg(test)]

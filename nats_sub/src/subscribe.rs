@@ -1,12 +1,13 @@
 use sentry::{capture_message, integrations::failure::capture_error, Level};
 
 extern crate termion;
-
+use futures::join;
+use std::thread;
 use termion::{clear, color, style};
 
+use nats::Message;
 use rmp_serde::*;
 use shared::nats::{establish_nats_connection, models::KDABlockNats, models::ShareNats};
-
 fn parse_share(msg: &Vec<u8>) -> Result<ShareNats, rmp_serde::decode::Error> {
   // Some JSON input data as a &str. Maybe this comes from the user.
   // Parse the string of data into serde_json::Value.
@@ -33,8 +34,13 @@ fn parse_kdablock(msg: &Vec<u8>) -> Result<KDABlockNats, rmp_serde::decode::Erro
   Ok(s)
 }
 
+fn handle_msg(msg: nats::Message, handler: String) -> Result<(), std::io::Error> {
+  println!("handlee_{} msg: {}", handler, msg.subject);
+  Ok(())
+}
+
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), std::io::Error> {
   // Initilize the nats connection
   let nc = match establish_nats_connection() {
     Ok(n) => n,
@@ -47,13 +53,16 @@ async fn main() {
   // let sub = nc.subscribe("kdablocks").unwrap();
   let now = std::time::Instant::now();
   let mut count: u64 = 0;
-  let sub = nc.subscribe(">").unwrap();
+  let sub = nc.subscribe("x.>").unwrap();
+
   for msg in sub.messages() {
     if msg.subject == "shares.2423" {
       continue;
     }
     println!("msg: {}", msg.subject);
   }
+  // thread::park();
+  Ok(())
   // 	loop {
   // 		  for msg in sub.try_iter() {
   // 	   //if let Some(msg) = sub.next() {

@@ -1387,6 +1387,7 @@ dependencies = [
  "criterion",
  "env_logger 0.7.1",
  "futures",
+ "nats",
  "quicli",
  "rmp-serde",
  "sentry",
@@ -1695,6 +1696,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "beae6331a816b1f65d04c45b078fd8e6c93e8071771f41b8163255bbd8d7c8fa"
 dependencies = [
  "unicode-xid 0.2.1",
+]
+
+[[package]]
+name = "publish_test"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "futures",
+ "nats",
+ "rand 0.6.5",
+ "rmp-serde",
+ "shared",
+ "tokio",
 ]
 
 [[package]]
@@ -2345,6 +2359,7 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "futures",
+ "nats",
  "rmp-serde",
  "serde_json",
  "shared",

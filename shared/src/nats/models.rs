@@ -21,7 +21,7 @@ pub struct ShareNats {
   pub user_type: String,
   // pub worker_id: i32,
   pub worker_uuid: String,
-  pub worker_name: String,
+  pub worker_name: Option<String>,
   pub coin_id: i16,
   pub timestamp: i64,
   pub difficulty: f64,

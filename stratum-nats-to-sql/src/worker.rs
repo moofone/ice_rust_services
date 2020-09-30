@@ -39,24 +39,26 @@ pub fn stratum_disconnect_listener(
 
     let mut counter = 0;
     for msg in sub.messages() {
+      println!("Msg: {} (printing every 100)", msg.subject);
+
       counter += 1;
       if counter % 100 == 0 {
         println!("Msg: {} (printing every 100)", msg.subject);
         counter = 0;
       }
       // println!("Msg: {}", msg.subject);
-      let stratum_disconnect_nats = parse_msg_disconnect(&msg.data).unwrap();
-
-      // grab a mysql pool connection
-      let conn = match mysql_pool.get() {
-        Ok(conn) => conn,
-        Err(e) => {
-          // crash and sentry BIG ISSUE
-          println!("Error mysql conn. e: {}", e);
-          panic!("error getting mysql connection e: {}",);
-        }
-      };
-      handle_worker_disconnect(&conn, &stratum_disconnect_nats.uuid);
+      if let Ok(stratum_disconnect_nats) = parse_msg_disconnect(&msg.data) {
+        // grab a mysql pool connection
+        let conn = match mysql_pool.get() {
+          Ok(conn) => conn,
+          Err(e) => {
+            // crash and sentry BIG ISSUE
+            println!("Error mysql conn. e: {}", e);
+            panic!("error getting mysql connection e: {}",);
+          }
+        };
+        handle_worker_disconnect(&conn, &stratum_disconnect_nats.uuid);
+      }
     }
   })
 }
@@ -110,7 +112,7 @@ pub fn stratum_devfee_listener(
 fn parse_msg_disconnect(msg: &Vec<u8>) -> Result<StratumDisconnectNats, rmp_serde::decode::Error> {
   let disconnect: StratumDisconnectNats = match rmp_serde::from_read_ref(&msg) {
     Ok(disconnect) => disconnect,
-    Err(e) => panic!("Error parsing Startum disconnect nats. e: {}", e),
+    Err(e) => return Err(e), //panic!("Error parsing Startum disconnect nats. e: {}", e),
   };
   // println!("stratum disconnect nats nim : {:?}", disconnect);
   Ok(disconnect)

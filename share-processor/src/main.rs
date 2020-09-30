@@ -131,7 +131,6 @@ use shared::db_mysql::{
   models::WorkerMYSQL,
   MysqlPool,
 };
-
 use shared::enums::*;
 use shared::nats::models::{
   ShareNats, ShareProcessorConfigNats, ShareProcessorConfigObj, ShareProcessorHashMap,
@@ -147,85 +146,77 @@ use tokio::time::{interval_at, Duration, Instant};
 
 mod auth;
 mod worker_scalar;
+mod worker_scalar_rework;
 
 const WINDOW_LENGTH: u64 = 60 * 5; //s
 const HASHRATE_INTERVAL: u64 = 1 * 15; //s
 
-// struct ShareQueueMinifiedObj {
-//   user_id: i32,
-//   timestamp: i64,
-//   algo: String,
-//   worker_id: i32,
-//   coin_id: i16,
-//   worker_name: String,
-//   difficulty: f64,
+// struct ShareProcesserServer {
+//   env: String,
+//   nc: nats::Connection,
+//   mysql_pool: MysqlPool,
+//   config: HashMap<String, ShareProcessorConfigObj>,
+//   test: Arc<Mutex<Vec<String>>>,
 // }
-// impl From<ShareNats> for ShareQueueMinifiedObj {
-//   fn from(s: ShareNats) -> Self {
-//     ShareQueueMinifiedObj {
-//       user_id: s.user_id,
-//       timestamp: s.timestamp,
-//       algo: "nim".to_string(), //Algos::from_i16(s.algo),
-//       worker_id: s.worker_id,
-//       coin_id: s.coin_id,
-//       worker_name: "".to_string(), // s.worker_name,
-//       difficulty: s.difficulty,
+// impl ShareProcesserServer {
+//   fn new() -> ShareProcesserServer {
+//     // setup dotenv
+//     dotenv().ok();
+
+//     // setup nats
+//     let nc = match establish_nats_connection() {
+//       Ok(n) => n,
+//       Err(e) => {
+//         println!("Nats did not connect: {}", e);
+//         panic!("Nats did not connect: {}", e);
+//       }
+//     };
+
+//     //setup msqyl
+//     let mysql_pool = match establish_mysql_connection() {
+//       Ok(p) => p,
+//       Err(e) => panic!("MYSQL FAILED: {}", e),
+//     };
+//     let mut config_nats = ShareProcessorConfigNats {
+//       config: HashMap::new(),
+//     };
+//     config_nats.config.insert(
+//       "2408-argon2d".to_string(),
+//       ShareProcessorConfigObj {
+//         window_length: 300,
+//         algo_target: 65536000,
+//       },
+//     );
+//     config_nats.config.insert(
+//       "2423-blake2s".to_string(),
+//       ShareProcessorConfigObj {
+//         window_length: 300,
+//         algo_target: 1000,
+//       },
+//     );
+//     let config = config_nats.config;
+//     // return the initialized dpplns server
+//     ShareProcesserServer {
+//       env: env::var("ENVIRONMENT_MODE").expect("ENVIRONMENT_MODE not set"),
+//       nc: nc,
+//       config: config,
+//       mysql_pool: mysql_pool,
+//       test: Arc::new(Mutex::new(Vec::new())),
 //     }
 //   }
-// }
-
-// #[derive(Debug)]
-// struct WorkerDictObj {
-//   worker_id: i32,
-//   start_time: i64,
-//   last_share_time: i64,
-//   count: i16,
-//   difficulty_sum: f64,
-//   difficulty: f64,
-//   worker_name: String,
-//   user_id: i32,
-//   // algo: Algos,
-//   algo: String,
-//   coin_id: i16,
-//   hashrate: f64,
-//   shares_per_min: f64,
-// }
-// impl WorkerDictObj {
-//   fn calc_hashrate(self) -> f64 {
-//     let target = Algos::get_target(&self.algo) as f64;
-//     let interval = (self.end_time - self.start_time) as f64;
-//     (self.difficulty * target) / interval / 1000.0
-//   }
-//   fn new(
-//     start: i64,
-//     end: i64,
-//     worker_name: &String,
-//     user_id: i32,
-//     algo: Algos,
-//     coin_id: i16,
-//   ) -> WorkerDictObj {
-//     WorkerDictObj {
-//       start_time: start,
-//       end_time: end,
-//       count: 0,
-//       difficulty: 0.0,
-//       worker_name: worker_name.to_string(),
-//       user_id: user_id,
-//       algo: algo,
-//       coin_id: coin_id,
-//       hashrate: 0.0,
-//     }
+//   async fn run(&self) -> Result<(), std::io::Error> {
+//     let worker_scalar_job = worker_scalar::run_jobs(&self.env, &self.mysql_pool, &self.nc);
+//     let auth_job = auth::run_jobs(&self.env, &self.mysql_pool, &self.nc);
+//     join!(worker_scalar_job, auth_job);
+//     Ok(())
 //   }
 // }
-
-// type ShareQueueType = VecDeque<ShareQueueMinifiedObj>;
-// type ShareQueuesMapType = HashMap<String, ShareQueueType>;
-// type ShareQueuesMapArcType = Arc<Mutex<ShareQueuesMapType>>;
-
-// type ShareQueueArc = Arc<Mutex<VecDeque<ShareQueueMinifiedObj>>>;
-
-// type WorkerDict = HashMap<i32, WorkerDictObj>;
-
+// #[tokio::main]
+// async fn main() -> Result<(), std::io::Error> {
+//   let share_processor = ShareProcesserServer::new();
+//   share_processor.run().await?;
+//   Ok(())
+// }
 #[tokio::main]
 async fn main() {
   dotenv().ok();
@@ -271,7 +262,9 @@ async fn main() {
   };
 
   let worker_scalar_job = worker_scalar::run_jobs(&env, &mysql_pool, &nc);
+  // let worker_scalar_job = worker_scalar_rework::run_jobs(&env, mysql_pool.clone(), nc.clone());
   let auth_job = auth::run_jobs(&env, &mysql_pool, &nc);
 
   join!(worker_scalar_job, auth_job);
+  // join!(auth_job);
 }
