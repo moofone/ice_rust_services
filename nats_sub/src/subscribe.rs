@@ -53,10 +53,10 @@ async fn main() -> Result<(), std::io::Error> {
   // let sub = nc.subscribe("kdablocks").unwrap();
   let now = std::time::Instant::now();
   let mut count: u64 = 0;
-  let sub = nc.subscribe("x.>").unwrap();
+  let sub = nc.subscribe(">").unwrap();
 
   for msg in sub.messages() {
-    if msg.subject == "shares.2423" {
+    if msg.subject == "dev.stratum.shares.2423" {
       continue;
     }
     println!("msg: {}", msg.subject);

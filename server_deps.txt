@@ -1,0 +1,5 @@
+Hashrate calc
+  share-processor
+  stratum-nats-to-sql
+  database-maintenance
+  event-scheduler

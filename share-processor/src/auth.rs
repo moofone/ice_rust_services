@@ -18,7 +18,7 @@ use shared::nats::NatsConnection;
 
 const SHARE_THRESHOLD: i8 = 1;
 const TRIM_INTERVAL: u64 = 60; //s
-const TRIM_THRESHOLD: i32 = 60; //s
+const TRIM_THRESHOLD: i32 = 600; //s
 
 pub struct AuthStruct {
   pub msg: StratumAuthNatsNIM,
