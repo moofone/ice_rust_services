@@ -372,10 +372,11 @@ async fn main() {
     // let channel = format!("shares.>");
     let subject;
     if env == "prod" {
-      subject = format!("shares.2423");
+      subject = format!("stratum.shares.>");
     } else {
-      subject = format!("{}.shares.2423", env);
+      subject = format!("{}.stratum.shares.>", env);
     }
+
     let sub = match nc.subscribe(&subject) {
       Ok(s) => s,
       Err(e) => panic!("Nats sub to shares failed: {}", e),

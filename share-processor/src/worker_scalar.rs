@@ -214,7 +214,7 @@ pub async fn run_jobs(env: &String, mysql_pool: &MysqlPool, nc: &NatsConnection)
   config_nats.config.insert(
     "2423-blake2s".to_string(),
     ShareProcessorConfigObj {
-      window_length: 300,
+      window_length: 600,
       algo_target: 1000,
     },
   );
@@ -305,6 +305,8 @@ fn trim_queue(
           Some(val) => val.window_length,
           None => 300,
         } as u64;
+        // println!("window length : {}\n", window_length);
+
         let time_current = SystemTime::now()
           .duration_since(UNIX_EPOCH)
           .unwrap()
@@ -409,6 +411,10 @@ async fn calc_raw_hashrate(
           Some(val) => val.algo_target,
           None => 1000,
         } as u64;
+        let window_length = match config.get(k) {
+          Some(val) => val.window_length,
+          None => 300,
+        } as u64;
         let mut worker_dict = WorkerDict::new();
         // add each share from the queue to the worker dict
         for share in share_queue.iter() {
@@ -440,8 +446,8 @@ async fn calc_raw_hashrate(
         for mut worker in worker_dict.values_mut() {
           // println!("worker difficulty sum: {}", worker.difficulty_sum);
           worker.hashrate =
-            (worker.difficulty_sum * (algo_target as f64) / WINDOW_LENGTH as f64) / 1000.0;
-          worker.shares_per_min = worker.count as f64 / (WINDOW_LENGTH as f64 / 60.0);
+            (worker.difficulty_sum * (algo_target as f64) / window_length as f64) / 1000.0;
+          worker.shares_per_min = worker.count as f64 / (window_length as f64 / 60.0);
           // println!(
           //   "worker uuid: {}, hashrate: {}, algo target: {}, window_length: {},",
           //   &worker.uuid, &worker.hashrate, algo_target, WINDOW_LENGTH,

@@ -3,3 +3,8 @@ Hashrate calc
   stratum-nats-to-sql
   database-maintenance
   event-scheduler
+
+Dpplns 
+  Dpplns 
+  blocks nats to sql
+  event-scheduler

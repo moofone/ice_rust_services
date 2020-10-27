@@ -170,7 +170,7 @@ pub struct KDABlockNats {
   pub coin_id: i16,
   pub height: i32,
   pub time: i64,
-  pub user_name: String,
+  pub user_name: Option<String>,
   pub user_type: String,
   // pub worker_uuid: String,
   pub rig_name: String,

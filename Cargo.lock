@@ -199,6 +199,7 @@ name = "blocks-nats-to-sql"
 version = "0.1.0"
 dependencies = [
  "diesel",
+ "dotenv",
  "futures",
  "nats",
  "rmp-serde",

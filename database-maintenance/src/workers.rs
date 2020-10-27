@@ -53,14 +53,14 @@ fn mysql_workers_cleanup_listener(
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
-        - 60 * 5; //30 minutes
+        - (60 * 30); //30 minutes
 
       // delete from workers where not active for longe rthan n minutes?
       let lookback_stale_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
-        - 60 * 5; // 30 minutes
+        - (60 * 30); // 30 minutes
       println!("Deleting stale workers");
       delete_stale_workers_mysql(&conn, 2423, lookback_stale_time as i32).unwrap();
       delete_stale_workers_mysql(&conn, 2408, lookback_stale_time as i32).unwrap();

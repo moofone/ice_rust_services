@@ -43,10 +43,12 @@ pub async fn run_jobs(env: &String, mysql_pool: &MysqlPool, nc: &NatsConnection)
   //-----------------------SHARES LISTENER--------------------------------
   let _share_listener = share_listener(env, &mysql_pool, nc, &account_queue.clone());
   //-----------------------Expired accounts job--------------------------------
-  let _expired_job = expired_job(env, &mut account_queue.clone());
+  let _expired_job = expire_accounts_without_shares(env, &mut account_queue.clone());
 
   join!(auth, _share_listener, _expired_job);
 }
+
+// auth listener - listens for auth messages and adds
 pub fn stratum_auth_listener(
   env: &String,
   mysql_pool: &MysqlPool,
@@ -115,10 +117,12 @@ pub fn stratum_auth_listener(
       };
 
       // println!("Abouty to get or insert account");
-      // get or insert the account
+
+      // check if the account is in the account queue, add if its not
       if let Some(gen_account) =
         get_account_or_add_to_queue(&conn, &stratum_auth_nats_nim, &mut account_queue)
       {
+        // if the account exists, insert or update the worker
         insert_or_update_worker(&conn, &gen_account, &stratum_auth_nats_nim).unwrap();
       }
       // });
@@ -287,7 +291,10 @@ fn parse_share_msg(msg: &Vec<u8>) -> Result<ShareNats, rmp_serde::decode::Error>
   Ok(share)
 }
 
-fn expired_job(env: &String, account_queue: &mut AccountQueue) -> tokio::task::JoinHandle<()> {
+fn expire_accounts_without_shares(
+  env: &String,
+  account_queue: &mut AccountQueue,
+) -> tokio::task::JoinHandle<()> {
   let account_queue = account_queue.clone();
   tokio::task::spawn(async move {
     let mut interval = interval_at(
@@ -365,8 +372,8 @@ fn insert_or_update_worker(
     pid: new_msg.pid,
     name: new_msg.user_name.to_string(),
     party_pass: new_msg.party_pass.to_string(),
-    last_share_time: None,
-    shares_per_min: None,
+    last_share_time: Some(new_msg.time),
+    shares_per_min: Some(0.0),
   };
   let rigname = worker.worker.to_string();
   let uuid = worker.uuid.to_string();

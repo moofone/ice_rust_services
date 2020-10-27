@@ -7,6 +7,7 @@
 extern crate shared;
 
 // use sentry::{capture_message, integrations::failure::capture_error, Level};
+use dotenv::dotenv;
 use shared::db_mysql::{
   establish_mysql_connection,
   helpers::accounts::get_account_by_username_mysql,
@@ -17,6 +18,7 @@ use shared::db_mysql::{
 };
 use shared::nats::establish_nats_connection;
 use shared::nats::models::{BlockNats, KDABlockNats};
+use std::env;
 // use std::time::{Duration, SystemTime, UNIX_EPOCH};
 // use tokio::time;
 
@@ -26,6 +28,8 @@ use shared::nats::models::{BlockNats, KDABlockNats};
 
 #[tokio::main]
 async fn main() {
+  dotenv().ok();
+  let env = env::var("ENVIRONMENT_MODE").expect("ENVIRONMENT_MODE not set");
   // let _guard =
   //   sentry::init("https://f8ee06fb619843b1ae923d9111d855a9@sentry.watlab.icemining.ca/10");
 
@@ -56,11 +60,10 @@ async fn main() {
     let mysql_pool = mysql_pool.clone();
     // setup nats channel
     let subject;
-    let env = "dev";
-    if env == "dev" {
-      subject = format!("dev.stratum.kdablocks");
-    } else {
+    if env == "prod" {
       subject = format!("stratum.kdablocks");
+    } else {
+      subject = format!("{}.stratum.kdablocks", env);
     }
     // let subject = format!("dev.stratum.kdablocks");
     let sub = match nc.queue_subscribe(&subject, "kdablocks_worker") {
@@ -134,11 +137,10 @@ async fn main() {
     let mysql_pool = mysql_pool.clone();
     // setup nats channel
     let subject;
-    let env = "dev";
-    if env == "dev" {
-      subject = format!("dev.stratum.blocks");
-    } else {
+    if env == "prod" {
       subject = format!("stratum.blocks");
+    } else {
+      subject = format!("{}.stratum.blocks", env);
     }
     let sub = match nc.queue_subscribe(&subject, "blocks_worker") {
       // let sub = match nc.subscribe(&subject) {
@@ -243,9 +245,12 @@ fn kdablocknats_to_blockmysqlinsertable(
   b: KDABlockNats,
   conn: &MysqlPooledConnection,
 ) -> KDABlockMYSQLInsertable {
-  let user_id: Option<i32> = match get_account_by_username_mysql(conn, &b.user_name) {
-    Ok(account) => Some(account.id),
-    Err(_) => None,
+  let mut user_id: Option<i32> = None;
+  if b.user_name.is_some() {
+    user_id = match get_account_by_username_mysql(conn, &b.user_name.unwrap()) {
+      Ok(account) => Some(account.id),
+      Err(_) => None,
+    };
   };
   KDABlockMYSQLInsertable {
     coin_id: b.coin_id as i32,
@@ -281,6 +286,7 @@ fn blocknats_to_blockmysqlinsertable(
     height: b.height as i32,
     time: b.time,
     userid: user_id,
+    user_name: Some(b.user_name),
     rigname: b.rig_name,
     // workerid: b.workerid,
     confirmations: b.confirmations,
